@@ -2,10 +2,11 @@
 
 #include <stdexcept>
 
-namespace my_auto_arena::core {
+namespace my_auto_arena {
+namespace core {
 
 namespace {
-int require_positive(const int value, const char* message) {
+int requirePositive(int value, const char* message) {
     if (value <= 0) {
         throw std::invalid_argument(message);
     }
@@ -13,10 +14,10 @@ int require_positive(const int value, const char* message) {
 }
 }  // namespace
 
-Board::Board(const int rows, const int cols, const int bench_size)
-    : rows_(require_positive(rows, "Rows must be positive.")),
-      cols_(require_positive(cols, "Cols must be positive.")),
-      bench_units_(require_positive(bench_size, "Bench size must be positive."), -1) {
+Board::Board(int rows, int cols, int benchSize)
+    : rows_(requirePositive(rows, "Rows must be positive.")),
+      cols_(requirePositive(cols, "Cols must be positive.")),
+      benchUnits_(requirePositive(benchSize, "Bench size must be positive."), -1) {
     tiles_.reserve(rows_ * cols_);
     for (int row = 0; row < rows_; ++row) {
         for (int col = 0; col < cols_; ++col) {
@@ -25,68 +26,98 @@ Board::Board(const int rows, const int cols, const int bench_size)
     }
 }
 
-int Board::rows() const noexcept { return rows_; }
+Board::Board(const Board& other)
+    : rows_(other.rows_), cols_(other.cols_), tiles_(other.tiles_), benchUnits_(other.benchUnits_) {}
 
-int Board::cols() const noexcept { return cols_; }
+int Board::rows() const { return rows_; }
 
-int Board::bench_size() const noexcept { return static_cast<int>(bench_units_.size()); }
+int Board::cols() const { return cols_; }
 
-bool Board::in_bounds(const Position position) const noexcept {
+int Board::benchSize() const { return static_cast<int>(benchUnits_.size()); }
+
+bool Board::inBounds(Position position) const {
     return position.row >= 0 && position.row < rows_ && position.col >= 0 && position.col < cols_;
 }
 
-bool Board::place_on_board(const int unit_id, const Position position) {
-    if (!in_bounds(position)) {
+bool Board::isPlayerHalf(Position position) const {
+    if (!inBounds(position)) {
         return false;
     }
-    return tiles_[tile_index(position)].place(unit_id);
+    return position.row >= rows_ / 2;
 }
 
-bool Board::clear_on_board(const Position position) {
-    if (!in_bounds(position)) {
+bool Board::isEnemyHalf(Position position) const {
+    if (!inBounds(position)) {
         return false;
     }
-    tiles_[tile_index(position)].clear();
+    return position.row < rows_ / 2;
+}
+
+bool Board::placeOnBoard(int unitId, Position position) {
+    if (!inBounds(position)) {
+        return false;
+    }
+    return tiles_.at(tileIndex(position)).place(unitId);
+}
+
+bool Board::clearOnBoard(Position position) {
+    if (!inBounds(position)) {
+        return false;
+    }
+    tiles_.at(tileIndex(position)).clear();
     return true;
 }
 
-std::optional<int> Board::occupant_on_board(const Position position) const {
-    if (!in_bounds(position)) {
-        return std::nullopt;
+int Board::occupantOnBoard(Position position) const {
+    if (!inBounds(position)) {
+        return kEmptySlot;
     }
-    const Tile& tile = tiles_[tile_index(position)];
+    const Tile& tile = tiles_.at(tileIndex(position));
     if (!tile.occupied()) {
-        return std::nullopt;
+        return kEmptySlot;
     }
-    return tile.occupant_id();
+    return tile.occupantId();
 }
 
-bool Board::place_on_bench(const int unit_id, const int index) {
-    if (index < 0 || index >= bench_size() || unit_id < 0 || bench_units_[index] >= 0) {
+Position Board::findUnitOnBoard(int unitId) const {
+    for (int row = 0; row < rows_; ++row) {
+        for (int col = 0; col < cols_; ++col) {
+            Position position{row, col};
+            if (occupantOnBoard(position) == unitId) {
+                return position;
+            }
+        }
+    }
+    return Position{-1, -1};
+}
+
+bool Board::placeOnBench(int unitId, int index) {
+    if (index < 0 || index >= benchSize() || unitId < 0 || benchUnits_.at(index) >= 0) {
         return false;
     }
-    bench_units_[index] = unit_id;
+    benchUnits_.at(index) = unitId;
     return true;
 }
 
-bool Board::clear_on_bench(const int index) {
-    if (index < 0 || index >= bench_size()) {
+bool Board::clearOnBench(int index) {
+    if (index < 0 || index >= benchSize()) {
         return false;
     }
-    bench_units_[index] = -1;
+    benchUnits_.at(index) = -1;
     return true;
 }
 
-std::optional<int> Board::occupant_on_bench(const int index) const {
-    if (index < 0 || index >= bench_size()) {
-        return std::nullopt;
+int Board::occupantOnBench(int index) const {
+    if (index < 0 || index >= benchSize()) {
+        return kEmptySlot;
     }
-    if (bench_units_[index] < 0) {
-        return std::nullopt;
+    if (benchUnits_.at(index) < 0) {
+        return kEmptySlot;
     }
-    return bench_units_[index];
+    return benchUnits_.at(index);
 }
 
-int Board::tile_index(const Position position) const noexcept { return position.row * cols_ + position.col; }
+int Board::tileIndex(Position position) const { return position.row * cols_ + position.col; }
 
-}  // namespace my_auto_arena::core
+}  // namespace core
+}  // namespace my_auto_arena

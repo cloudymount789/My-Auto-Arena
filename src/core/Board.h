@@ -1,12 +1,12 @@
 #ifndef MY_AUTO_ARENA_CORE_BOARD_H
 #define MY_AUTO_ARENA_CORE_BOARD_H
 
-#include <optional>
 #include <vector>
 
 #include "core/Tile.h"
 
-namespace my_auto_arena::core {
+namespace my_auto_arena {
+namespace core {
 
 struct Position {
     int row;
@@ -15,30 +15,39 @@ struct Position {
 
 class Board {
 public:
-    Board(int rows, int cols, int bench_size);
+    static const int kEmptySlot = -1;
 
-    [[nodiscard]] int rows() const noexcept;
-    [[nodiscard]] int cols() const noexcept;
-    [[nodiscard]] int bench_size() const noexcept;
-    [[nodiscard]] bool in_bounds(Position position) const noexcept;
+    Board(int rows, int cols, int benchSize);
+    Board(const Board& other);
 
-    bool place_on_board(int unit_id, Position position);
-    bool clear_on_board(Position position);
-    [[nodiscard]] std::optional<int> occupant_on_board(Position position) const;
+    int rows() const;
+    int cols() const;
+    int benchSize() const;
+    bool inBounds(Position position) const;
+    bool isPlayerHalf(Position position) const;
+    bool isEnemyHalf(Position position) const;
 
-    bool place_on_bench(int unit_id, int index);
-    bool clear_on_bench(int index);
-    [[nodiscard]] std::optional<int> occupant_on_bench(int index) const;
+    bool placeOnBoard(int unitId, Position position);
+    bool clearOnBoard(Position position);
+    // 返回占用单位ID；若空位或越界返回 kEmptySlot。
+    int occupantOnBoard(Position position) const;
+    Position findUnitOnBoard(int unitId) const;
+
+    bool placeOnBench(int unitId, int index);
+    bool clearOnBench(int index);
+    // 返回占用单位ID；若空位或越界返回 kEmptySlot。
+    int occupantOnBench(int index) const;
 
 private:
     int rows_;
     int cols_;
     std::vector<Tile> tiles_;
-    std::vector<int> bench_units_;
+    std::vector<int> benchUnits_;
 
-    [[nodiscard]] int tile_index(Position position) const noexcept;
+    int tileIndex(Position position) const;
 };
 
-}  // namespace my_auto_arena::core
+}  // namespace core
+}  // namespace my_auto_arena
 
 #endif  // MY_AUTO_ARENA_CORE_BOARD_H

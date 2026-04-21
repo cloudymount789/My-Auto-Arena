@@ -13,34 +13,34 @@ TEST(UnitTest, WarriorHasExpectedDefaultStats) {
 
     EXPECT_EQ(unit.id(), 1);
     EXPECT_EQ(unit.name(), "Warrior");
-    EXPECT_EQ(unit.max_hp(), 800);
+    EXPECT_EQ(unit.maxHp(), 800);
     EXPECT_EQ(unit.hp(), 800);
     EXPECT_EQ(unit.attack(), 65);
-    EXPECT_EQ(unit.attack_range(), 1);
-    EXPECT_EQ(unit.max_mana(), 100);
+    EXPECT_EQ(unit.attackRange(), 1);
+    EXPECT_EQ(unit.maxMana(), 100);
     EXPECT_EQ(unit.mana(), 0);
 }
 
 TEST(UnitTest, TakesDamageUntilDeathWithoutGoingNegative) {
     WarriorUnit unit(1, UnitOwner::player);
 
-    unit.take_damage(200);
+    unit.takeDamage(200);
     EXPECT_EQ(unit.hp(), 600);
-    EXPECT_TRUE(unit.is_alive());
+    EXPECT_TRUE(unit.isAlive());
 
-    unit.take_damage(10000);
+    unit.takeDamage(10000);
     EXPECT_EQ(unit.hp(), 0);
-    EXPECT_FALSE(unit.is_alive());
+    EXPECT_FALSE(unit.isAlive());
 }
 
 TEST(UnitTest, GainsManaWithUpperBound) {
     MageUnit unit(2, UnitOwner::enemy);
 
-    unit.gain_mana(30);
+    unit.gainMana(30);
     EXPECT_EQ(unit.mana(), 30);
 
-    unit.gain_mana(500);
-    EXPECT_EQ(unit.mana(), unit.max_mana());
+    unit.gainMana(500);
+    EXPECT_EQ(unit.mana(), unit.maxMana());
 }
 
 TEST(UnitTest, RejectsInvalidStatsAtConstruction) {
@@ -51,12 +51,12 @@ TEST(UnitTest, RejectsInvalidStatsAtConstruction) {
 
 TEST(UnitTest, DeadUnitCannotGainManaOrTakeMoreDamage) {
     WarriorUnit unit(9, UnitOwner::player);
-    unit.take_damage(9999);
+    unit.takeDamage(9999);
     const int dead_hp = unit.hp();
     const int dead_mana = unit.mana();
 
-    unit.take_damage(10);
-    unit.gain_mana(50);
+    unit.takeDamage(10);
+    unit.gainMana(50);
 
     EXPECT_EQ(unit.hp(), dead_hp);
     EXPECT_EQ(unit.mana(), dead_mana);

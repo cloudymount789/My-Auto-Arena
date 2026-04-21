@@ -1,29 +1,34 @@
 #include "core/Tile.h"
 
-namespace my_auto_arena::core {
+namespace my_auto_arena {
+namespace core {
 
-Tile::Tile(const int row, const int col) noexcept : row_(row), col_(col) {}
+Tile::Tile(int row, int col) : row_(row), col_(col) {}
 
-int Tile::row() const noexcept { return row_; }
+Tile::Tile(const Tile& other)
+    : row_(other.row_), col_(other.col_), occupied_(other.occupied_), occupantId_(other.occupantId_) {}
 
-int Tile::col() const noexcept { return col_; }
+int Tile::row() const { return row_; }
 
-bool Tile::occupied() const noexcept { return occupied_; }
+int Tile::col() const { return col_; }
 
-int Tile::occupant_id() const noexcept { return occupant_id_; }
+bool Tile::occupied() const { return occupied_; }
 
-bool Tile::place(const int unit_id) noexcept {
-    if (occupied_ || unit_id < 0) {
+int Tile::occupantId() const { return occupantId_; }
+
+bool Tile::place(int unitId) {
+    if (occupied_ || unitId < 0) {
         return false;
     }
     occupied_ = true;
-    occupant_id_ = unit_id;
+    occupantId_ = unitId;
     return true;
 }
 
-void Tile::clear() noexcept {
+void Tile::clear() {
     occupied_ = false;
-    occupant_id_ = -1;
+    occupantId_ = -1;
 }
 
-}  // namespace my_auto_arena::core
+}  // namespace core
+}  // namespace my_auto_arena

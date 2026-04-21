@@ -1,27 +1,31 @@
 #ifndef MY_AUTO_ARENA_CORE_TILE_H
 #define MY_AUTO_ARENA_CORE_TILE_H
 
-namespace my_auto_arena::core {
+namespace my_auto_arena {
+namespace core {
 
 class Tile {
 public:
-    Tile(int row, int col) noexcept;
+    // 单个棋盘格：只负责位置与占用状态。
+    Tile(int row, int col);
+    Tile(const Tile& other);
 
-    [[nodiscard]] int row() const noexcept;
-    [[nodiscard]] int col() const noexcept;
-    [[nodiscard]] bool occupied() const noexcept;
-    [[nodiscard]] int occupant_id() const noexcept;
+    int row() const;
+    int col() const;
+    bool occupied() const;
+    int occupantId() const;
 
-    bool place(int unit_id) noexcept;
-    void clear() noexcept;
+    bool place(int unitId);
+    void clear();
 
 private:
     int row_;
     int col_;
     bool occupied_{false};
-    int occupant_id_{-1};
+    int occupantId_{-1};
 };
 
-}  // namespace my_auto_arena::core
+}  // namespace core
+}  // namespace my_auto_arena
 
 #endif  // MY_AUTO_ARENA_CORE_TILE_H

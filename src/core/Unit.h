@@ -1,54 +1,74 @@
 #ifndef MY_AUTO_ARENA_CORE_UNIT_H
 #define MY_AUTO_ARENA_CORE_UNIT_H
 
+#include <map>
 #include <string>
 
-namespace my_auto_arena::core {
+namespace my_auto_arena {
+namespace core {
+
+class Board;
 
 enum class UnitOwner { player, enemy };
 
 class Unit {
 public:
-    Unit(int id, std::string name, UnitOwner owner, int max_hp, int attack, int attack_range, int max_mana);
+    // 战斗单位基类：管理通用属性与基础战斗行为。
+    Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana);
+    // 按课程要求显式定义拷贝构造函数，便于讲解对象复制语义。
+    Unit(const Unit& other);
     virtual ~Unit() = default;
 
-    [[nodiscard]] int id() const noexcept;
-    [[nodiscard]] const std::string& name() const noexcept;
-    [[nodiscard]] UnitOwner owner() const noexcept;
-    [[nodiscard]] int hp() const noexcept;
-    [[nodiscard]] int max_hp() const noexcept;
-    [[nodiscard]] int attack() const noexcept;
-    [[nodiscard]] int attack_range() const noexcept;
-    [[nodiscard]] int mana() const noexcept;
-    [[nodiscard]] int max_mana() const noexcept;
-    [[nodiscard]] bool is_alive() const noexcept;
+    int id() const;
+    const std::string& name() const;
+    UnitOwner owner() const;
+    int hp() const;
+    int maxHp() const;
+    int attack() const;
+    int attackRange() const;
+    int mana() const;
+    int maxMana() const;
+    bool isAlive() const;
 
-    void take_damage(int amount) noexcept;
-    void gain_mana(int amount) noexcept;
+    void takeDamage(int amount);
+    void gainMana(int amount);
+    void heal(int amount);
+
+    // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
+    virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget);
 
 protected:
+    void spendAllMana();
+
 private:
     int id_;
     std::string name_;
     UnitOwner owner_;
     int hp_;
-    int max_hp_;
+    int maxHp_;
     int attack_;
-    int attack_range_;
-    int mana_{0};
-    int max_mana_;
+    int attackRange_;
+    int mana_;
+    int maxMana_;
 };
 
 class WarriorUnit final : public Unit {
 public:
-    explicit WarriorUnit(int id, UnitOwner owner);
+    WarriorUnit(int id, UnitOwner owner);
+    virtual ~WarriorUnit() override = default;
+
+    void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
 };
 
 class MageUnit final : public Unit {
 public:
-    explicit MageUnit(int id, UnitOwner owner);
+    MageUnit(int id, UnitOwner owner);
+    virtual ~MageUnit() override = default;
+
+    void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
 };
 
-}  // namespace my_auto_arena::core
+}  // namespace core
+}  // namespace my_auto_arena
 
 #endif  // MY_AUTO_ARENA_CORE_UNIT_H

@@ -2,60 +2,127 @@
 
 #include <algorithm>
 #include <stdexcept>
+#include <utility>
 
-namespace my_auto_arena::core {
+#include "core/Board.h"
 
-Unit::Unit(const int id, std::string name, const UnitOwner owner, const int max_hp, const int attack,
-           const int attack_range, const int max_mana)
+namespace my_auto_arena {
+namespace core {
+
+Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana)
     : id_(id),
       name_(std::move(name)),
       owner_(owner),
-      hp_(max_hp),
-      max_hp_(max_hp),
+      hp_(maxHp),
+      maxHp_(maxHp),
       attack_(attack),
-      attack_range_(attack_range),
-      max_mana_(max_mana) {
-    if (id < 0 || max_hp <= 0 || attack < 0 || attack_range <= 0 || max_mana <= 0) {
+      attackRange_(attackRange),
+      mana_(0),
+      maxMana_(maxMana) {
+    // 允许 attack == 0，用于后续可能的纯辅助类单位。
+    if (id < 0 || maxHp <= 0 || attack < 0 || attackRange <= 0 || maxMana <= 0) {
         throw std::invalid_argument("Invalid unit stats.");
     }
 }
 
-int Unit::id() const noexcept { return id_; }
+Unit::Unit(const Unit& other)
+    : id_(other.id_),
+      name_(other.name_),
+      owner_(other.owner_),
+      hp_(other.hp_),
+      maxHp_(other.maxHp_),
+      attack_(other.attack_),
+      attackRange_(other.attackRange_),
+      mana_(other.mana_),
+      maxMana_(other.maxMana_) {}
 
-const std::string& Unit::name() const noexcept { return name_; }
+int Unit::id() const { return id_; }
 
-UnitOwner Unit::owner() const noexcept { return owner_; }
+const std::string& Unit::name() const { return name_; }
 
-int Unit::hp() const noexcept { return hp_; }
+UnitOwner Unit::owner() const { return owner_; }
 
-int Unit::max_hp() const noexcept { return max_hp_; }
+int Unit::hp() const { return hp_; }
 
-int Unit::attack() const noexcept { return attack_; }
+int Unit::maxHp() const { return maxHp_; }
 
-int Unit::attack_range() const noexcept { return attack_range_; }
+int Unit::attack() const { return attack_; }
 
-int Unit::mana() const noexcept { return mana_; }
+int Unit::attackRange() const { return attackRange_; }
 
-int Unit::max_mana() const noexcept { return max_mana_; }
+int Unit::mana() const { return mana_; }
 
-bool Unit::is_alive() const noexcept { return hp_ > 0; }
+int Unit::maxMana() const { return maxMana_; }
 
-void Unit::take_damage(const int amount) noexcept {
-    if (amount <= 0 || !is_alive()) {
+bool Unit::isAlive() const { return hp_ > 0; }
+
+void Unit::takeDamage(int amount) {
+    if (amount <= 0 || !isAlive()) {
         return;
     }
     hp_ = std::max(0, hp_ - amount);
 }
 
-void Unit::gain_mana(const int amount) noexcept {
-    if (amount <= 0 || !is_alive()) {
+void Unit::gainMana(int amount) {
+    if (amount <= 0 || !isAlive()) {
         return;
     }
-    mana_ = std::min(max_mana_, mana_ + amount);
+    mana_ = std::min(maxMana_, mana_ + amount);
 }
 
-WarriorUnit::WarriorUnit(const int id, const UnitOwner owner) : Unit(id, "Warrior", owner, 800, 65, 1, 100) {}
+void Unit::heal(int amount) {
+    if (amount <= 0 || !isAlive()) {
+        return;
+    }
+    hp_ = std::min(maxHp_, hp_ + amount);
+}
 
-MageUnit::MageUnit(const int id, const UnitOwner owner) : Unit(id, "Mage", owner, 500, 45, 3, 100) {}
+void Unit::spendAllMana() { mana_ = 0; }
 
-}  // namespace my_auto_arena::core
+void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
+    (void)board;
+    (void)units;
+    (void)primaryTarget;
+    spendAllMana();
+}
+
+WarriorUnit::WarriorUnit(int id, UnitOwner owner) : Unit(id, "Warrior", owner, 800, 65, 1, 100) {}
+
+void WarriorUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
+    (void)units;
+    if (primaryTarget != nullptr && primaryTarget->isAlive()) {
+        const Position selfPos = board.findUnitOnBoard(id());
+        const Position tgtPos = board.findUnitOnBoard(primaryTarget->id());
+        if (board.inBounds(selfPos) && board.inBounds(tgtPos)) {
+            const int dr = selfPos.row - tgtPos.row;
+            const int dc = selfPos.col - tgtPos.col;
+            const int r = attackRange();
+            if (dr * dr + dc * dc <= r * r) {
+                primaryTarget->takeDamage(attack());
+            }
+        }
+    }
+    spendAllMana();
+}
+
+MageUnit::MageUnit(int id, UnitOwner owner) : Unit(id, "Mage", owner, 500, 45, 3, 100) {}
+
+void MageUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
+    (void)units;
+    if (primaryTarget != nullptr && primaryTarget->isAlive()) {
+        const Position selfPos = board.findUnitOnBoard(id());
+        const Position tgtPos = board.findUnitOnBoard(primaryTarget->id());
+        if (board.inBounds(selfPos) && board.inBounds(tgtPos)) {
+            const int dr = selfPos.row - tgtPos.row;
+            const int dc = selfPos.col - tgtPos.col;
+            const int r = attackRange();
+            if (dr * dr + dc * dc <= r * r) {
+                primaryTarget->takeDamage(attack());
+            }
+        }
+    }
+    spendAllMana();
+}
+
+}  // namespace core
+}  // namespace my_auto_arena
