@@ -14,6 +14,8 @@ namespace core {
 class AshRaiderHero final : public Unit {
 public:
     AshRaiderHero(int id, UnitOwner owner);
+    // 显式拷贝构造函数：委托给 Unit，便于课程讲解派生类拷贝语义。
+    AshRaiderHero(const AshRaiderHero& other);
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
     virtual ~AshRaiderHero() override = default;
 };
@@ -21,6 +23,7 @@ public:
 class NightArcherHero final : public Unit {
 public:
     NightArcherHero(int id, UnitOwner owner);
+    NightArcherHero(const NightArcherHero& other);
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
     virtual ~NightArcherHero() override = default;
 };
@@ -28,6 +31,7 @@ public:
 class CurseHammerHero final : public Unit {
 public:
     CurseHammerHero(int id, UnitOwner owner);
+    CurseHammerHero(const CurseHammerHero& other);
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
     virtual ~CurseHammerHero() override = default;
 };
@@ -35,6 +39,7 @@ public:
 class MistWitchHero final : public Unit {
 public:
     MistWitchHero(int id, UnitOwner owner);
+    MistWitchHero(const MistWitchHero& other);
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
     virtual ~MistWitchHero() override = default;
 };
@@ -42,6 +47,7 @@ public:
 class BonePrayerHero final : public Unit {
 public:
     BonePrayerHero(int id, UnitOwner owner);
+    BonePrayerHero(const BonePrayerHero& other);
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
     virtual ~BonePrayerHero() override = default;
 };

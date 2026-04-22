@@ -1,5 +1,7 @@
 #include "core/GameFSM.h"
 
+#include <stdexcept>
+
 namespace my_auto_arena {
 namespace core {
 
@@ -68,7 +70,12 @@ PhaseTransitionResult GameFSM::startNextRound() {
     return PhaseTransitionResult::kSuccess;
 }
 
-const RoundOutcome& GameFSM::lastOutcome() const { return lastOutcome_; }
+const RoundOutcome& GameFSM::lastOutcome() const {
+    if (!hasOutcome_) {
+        throw std::logic_error("lastOutcome() called before any round has been settled; check hasOutcome() first.");
+    }
+    return lastOutcome_;
+}
 
 void GameFSM::setGameOver() { gameOver_ = true; }
 

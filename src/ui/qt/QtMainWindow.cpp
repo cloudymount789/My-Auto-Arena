@@ -43,14 +43,14 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     connect(scene_, SIGNAL(unitSelected(int)), this, SLOT(onUnitSelected(int)));
     connect(scene_, SIGNAL(dragResultReady(core::DragResult)), this, SLOT(onDragResult(core::DragResult)));
 
-    setWindowTitle("Synera Qt GUI (Phase 1)");
+    setWindowTitle("Synera: Synergy Auto-Arena (Phase 1 + Phase 2)");
     resize(940, 760);
     statusBar()->showMessage("Ready");
 }
 
 QtMainWindow::~QtMainWindow() {
     for (std::size_t i = 0; i < units_.size(); ++i) {
-        delete units_[i];
+        delete units_.at(i);
     }
 }
 

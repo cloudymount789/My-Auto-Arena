@@ -15,15 +15,10 @@ bool inAttackRange(Position p, Position targetPos, int attackRange) {
     return dr * dr + dc * dc <= attackRange * attackRange;
 }
 
-bool canEnterCell(const Board& board, int movingUnitId, Position cell, Position start) {
-    const int occ = board.occupantOnBoard(cell);
-    if (occ == Board::kEmptySlot) {
-        return true;
-    }
-    if (occ == movingUnitId && cell.row == start.row && cell.col == start.col) {
-        return true;
-    }
-    return false;
+// 判断单位是否可进入目标格：仅允许空格。
+// 注：起始格在 BFS 开始前已标记 visited，永远不会被扩展为邻格，故无需特判自身起始位置。
+bool canEnterCell(const Board& board, Position cell) {
+    return board.occupantOnBoard(cell) == Board::kEmptySlot;
 }
 
 bool isGoalCell(const Board& board, Position cell, Position targetPos, int attackRange) {
@@ -38,9 +33,12 @@ bool isGoalCell(const Board& board, Position cell, Position targetPos, int attac
 
 }  // namespace
 
-bool Pathfinder::nextStepTowardAttackRange(const Board& board, const std::map<int, Unit*>& units, int movingUnitId,
-                                           Position start, Position targetPos, int attackRange, Position* outNext) {
+bool Pathfinder::nextStepTowardAttackRange(const Board& board,
+                                           const std::map<int, Unit*>& units,  // 预留参数：用于未来按单位类型设置通行性
+                                           int movingUnitId, Position start, Position targetPos, int attackRange,
+                                           Position* outNext) {
     (void)units;
+    (void)movingUnitId;
     if (outNext == nullptr || !board.inBounds(start) || !board.inBounds(targetPos)) {
         return false;
     }
@@ -72,7 +70,7 @@ bool Pathfinder::nextStepTowardAttackRange(const Board& board, const std::map<in
             if (!board.inBounds(nxt)) {
                 continue;
             }
-            if (!canEnterCell(board, movingUnitId, nxt, start)) {
+            if (!canEnterCell(board, nxt)) {
                 continue;
             }
             if (visited.at(nxt.row).at(nxt.col)) {

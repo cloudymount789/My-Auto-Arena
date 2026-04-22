@@ -40,7 +40,7 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, const std::vect
     }
 
     for (std::size_t i = 0; i < units_.size(); ++i) {
-        core::Unit* unit = units_[i];
+        core::Unit* unit = units_.at(i);
         UnitGraphicsItem* item =
             new UnitGraphicsItem(unit->id(), QString::fromStdString(unit->name()), unit->hp(), unit->maxHp(),
                                  unit->mana(), unit->maxMana(), 64.0);
@@ -57,8 +57,8 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, const std::vect
 
 const core::Unit* ArenaScene::unitById(int unitId) const {
     for (std::size_t i = 0; i < units_.size(); ++i) {
-        if (units_[i]->id() == unitId) {
-            return units_[i];
+        if (units_.at(i)->id() == unitId) {
+            return units_.at(i);
         }
     }
     return nullptr;
@@ -74,7 +74,7 @@ void ArenaScene::onDragMoved(int, QPointF scenePos) {
     }
 
     for (std::size_t i = 0; i < tileItems_.size(); ++i) {
-        TileGraphicsItem* tile = tileItems_[i];
+        TileGraphicsItem* tile = tileItems_.at(i);
         bool hit = false;
         if (to.type == core::DragLocation::kBoard) {
             hit = (tile->logicalRow() == to.boardPos.row && tile->logicalCol() == to.boardPos.col);

@@ -36,6 +36,22 @@ Unit::Unit(const Unit& other)
       mana_(other.mana_),
       maxMana_(other.maxMana_) {}
 
+Unit& Unit::operator=(const Unit& other) {
+    if (this == &other) {
+        return *this;
+    }
+    id_ = other.id_;
+    name_ = other.name_;
+    owner_ = other.owner_;
+    hp_ = other.hp_;
+    maxHp_ = other.maxHp_;
+    attack_ = other.attack_;
+    attackRange_ = other.attackRange_;
+    mana_ = other.mana_;
+    maxMana_ = other.maxMana_;
+    return *this;
+}
+
 int Unit::id() const { return id_; }
 
 const std::string& Unit::name() const { return name_; }
@@ -79,6 +95,23 @@ void Unit::heal(int amount) {
 
 void Unit::spendAllMana() { mana_ = 0; }
 
+void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
+    if (primaryTarget == nullptr || !primaryTarget->isAlive()) {
+        return;
+    }
+    const Position selfPos = board.findUnitOnBoard(id());
+    const Position tgtPos = board.findUnitOnBoard(primaryTarget->id());
+    if (!board.inBounds(selfPos) || !board.inBounds(tgtPos)) {
+        return;
+    }
+    const int dr = selfPos.row - tgtPos.row;
+    const int dc = selfPos.col - tgtPos.col;
+    const int r = attackRange();
+    if (dr * dr + dc * dc <= r * r) {
+        primaryTarget->takeDamage(attack());
+    }
+}
+
 void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -88,39 +121,21 @@ void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* pr
 
 WarriorUnit::WarriorUnit(int id, UnitOwner owner) : Unit(id, "Warrior", owner, 800, 65, 1, 100) {}
 
+WarriorUnit::WarriorUnit(const WarriorUnit& other) : Unit(other) {}
+
 void WarriorUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)units;
-    if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        const Position selfPos = board.findUnitOnBoard(id());
-        const Position tgtPos = board.findUnitOnBoard(primaryTarget->id());
-        if (board.inBounds(selfPos) && board.inBounds(tgtPos)) {
-            const int dr = selfPos.row - tgtPos.row;
-            const int dc = selfPos.col - tgtPos.col;
-            const int r = attackRange();
-            if (dr * dr + dc * dc <= r * r) {
-                primaryTarget->takeDamage(attack());
-            }
-        }
-    }
+    performAttackInRange(board, primaryTarget);
     spendAllMana();
 }
 
 MageUnit::MageUnit(int id, UnitOwner owner) : Unit(id, "Mage", owner, 500, 45, 3, 100) {}
 
+MageUnit::MageUnit(const MageUnit& other) : Unit(other) {}
+
 void MageUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)units;
-    if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        const Position selfPos = board.findUnitOnBoard(id());
-        const Position tgtPos = board.findUnitOnBoard(primaryTarget->id());
-        if (board.inBounds(selfPos) && board.inBounds(tgtPos)) {
-            const int dr = selfPos.row - tgtPos.row;
-            const int dc = selfPos.col - tgtPos.col;
-            const int r = attackRange();
-            if (dr * dr + dc * dc <= r * r) {
-                primaryTarget->takeDamage(attack());
-            }
-        }
-    }
+    performAttackInRange(board, primaryTarget);
     spendAllMana();
 }
 

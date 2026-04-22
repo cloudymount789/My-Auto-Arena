@@ -8,7 +8,7 @@ namespace my_auto_arena {
 namespace core {
 
 BattleEngine::BattleEngine(Board& board, std::map<int, Unit*>& units)
-    : board_(board), units_(units), tickCount_(0), finished_(false), outcome_{false, 0, 0}, defeatHpPenalty_(4) {}
+    : board_(board), units_(units), tickCount_(0), finished_(false), outcome_{false, 0, 0, false}, defeatHpPenalty_(4) {}
 
 void BattleEngine::setDefeatHpPenalty(int hpPenalty) { defeatHpPenalty_ = hpPenalty; }
 
@@ -77,6 +77,7 @@ void BattleEngine::tick() {
         outcome_.playerWon = false;
         outcome_.goldReward = 1;
         outcome_.hpPenalty = defeatHpPenalty_;
+        outcome_.gameOver = false;  // 由 PvERoundRunner 在扣血后判断并设置
     }
 }
 
@@ -94,6 +95,7 @@ Unit* BattleEngine::selectTarget(const Unit& attacker) const {
 
     Unit* best = nullptr;
     int bestDist = INT_MAX;
+    Position bestPos{-1, -1};
     for (std::map<int, Unit*>::const_iterator cit = units_.begin(); cit != units_.end(); ++cit) {
         Unit* candidate = cit->second;
         if (candidate == nullptr || !candidate->isAlive() || candidate->owner() == attacker.owner()) {
@@ -107,14 +109,15 @@ Unit* BattleEngine::selectTarget(const Unit& attacker) const {
         if (best == nullptr || d < bestDist) {
             best = candidate;
             bestDist = d;
+            bestPos = candidatePos;
             continue;
         }
+        // Prefer finishing low-HP targets; break ties deterministically by grid position.
         if (d == bestDist) {
-            Position bestPos = board_.findUnitOnBoard(best->id());
-            // Prefer finishing low-HP targets; break ties deterministically by grid position.
             if (candidate->hp() < best->hp() || (candidate->hp() == best->hp() && candidatePos.col < bestPos.col) ||
                 (candidate->hp() == best->hp() && candidatePos.col == bestPos.col && candidatePos.row > bestPos.row)) {
                 best = candidate;
+                bestPos = candidatePos;
             }
         }
     }
@@ -166,6 +169,7 @@ void BattleEngine::clearDeadUnits() {
         if (board_.inBounds(pos)) {
             board_.clearOnBoard(pos);
         }
+        // BattleEngine 不持有指针所有权；内存释放由调用方（PvERoundRunner）负责。
         it = units_.erase(it);
     }
 }
@@ -191,10 +195,12 @@ void BattleEngine::resolveEndState() {
         outcome_.playerWon = true;
         outcome_.goldReward = 3;
         outcome_.hpPenalty = 0;
+        outcome_.gameOver = false;
     } else {
         outcome_.playerWon = false;
         outcome_.goldReward = 1;
         outcome_.hpPenalty = defeatHpPenalty_;
+        outcome_.gameOver = false;  // 由 PvERoundRunner 在扣血后判断并设置
     }
 }
 

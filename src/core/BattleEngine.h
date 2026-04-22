@@ -17,6 +17,7 @@ public:
 
     BattleEngine(Board& board, std::map<int, Unit*>& units);
     BattleEngine(const BattleEngine& other) = delete;
+    BattleEngine& operator=(const BattleEngine& other) = delete;
 
     void tick();
     bool isFinished() const;

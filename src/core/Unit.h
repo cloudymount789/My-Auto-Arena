@@ -17,6 +17,8 @@ public:
     Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana);
     // 按课程要求显式定义拷贝构造函数，便于讲解对象复制语义。
     Unit(const Unit& other);
+    // 按 Rule of Three 要求配套定义拷贝赋值运算符。
+    Unit& operator=(const Unit& other);
     virtual ~Unit() = default;
 
     int id() const;
@@ -39,6 +41,8 @@ public:
 
 protected:
     void spendAllMana();
+    // 范围内对单目标造成普攻伤害；WarriorUnit/MageUnit 的默认技能共用此逻辑。
+    void performAttackInRange(Board& board, Unit* primaryTarget);
 
 private:
     int id_;
@@ -55,17 +59,21 @@ private:
 class WarriorUnit final : public Unit {
 public:
     WarriorUnit(int id, UnitOwner owner);
+    // 显式拷贝构造函数：委托给基类 Unit，演示继承体系中的拷贝语义。
+    WarriorUnit(const WarriorUnit& other);
     virtual ~WarriorUnit() override = default;
 
-    void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
+    virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
 };
 
 class MageUnit final : public Unit {
 public:
     MageUnit(int id, UnitOwner owner);
+    // 显式拷贝构造函数：委托给基类 Unit，演示继承体系中的拷贝语义。
+    MageUnit(const MageUnit& other);
     virtual ~MageUnit() override = default;
 
-    void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
+    virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
 };
 
 }  // namespace core

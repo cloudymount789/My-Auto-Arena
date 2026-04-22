@@ -12,6 +12,7 @@ struct RoundOutcome {
     bool playerWon;
     int goldReward;
     int hpPenalty;
+    bool gameOver;  // 玩家血量归零时由 PvERoundRunner 设置为 true，调用方据此调用 GameFSM::setGameOver()
 };
 
 class GameFSM {

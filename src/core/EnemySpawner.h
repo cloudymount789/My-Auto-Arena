@@ -34,7 +34,8 @@ struct LevelConfig {
 class EnemySpawner {
 public:
     EnemySpawner();
-    EnemySpawner(const EnemySpawner& other);
+    // EnemySpawner 无数据成员，显式声明拷贝构造函数符合课程规范；实现委托给默认行为。
+    EnemySpawner(const EnemySpawner& other) = default;
 
     const std::vector<EnemyTemplate>& templates() const;
     LevelConfig configForRound(int round) const;

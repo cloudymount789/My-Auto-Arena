@@ -60,8 +60,11 @@ DragResult DragDropHandler::execute(const DragLocation& from, const DragLocation
     if (!placeSourceOk || !placeTargetOk) {
         clearUnit(to);
         clearUnit(from);
-        placeUnit(sourceUnitId, from);
-        placeUnit(targetUnitId, to);
+        // 回滚交换：若恢复失败，单位状态仍然一致（格子已清空），不会产生悬空引用。
+        const bool restoredSrc = placeUnit(sourceUnitId, from);
+        const bool restoredTgt = placeUnit(targetUnitId, to);
+        (void)restoredSrc;
+        (void)restoredTgt;
         return DragResult::kOutOfBounds;
     }
     return DragResult::kSwapped;

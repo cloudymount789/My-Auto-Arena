@@ -6,6 +6,8 @@ namespace core {
 AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
     : Unit(id, "灰烬掠袭者", owner, 680, 70, 1, 65) {}
 
+AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : Unit(other) {}
+
 void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -18,6 +20,8 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
 NightArcherHero::NightArcherHero(int id, UnitOwner owner)
     : Unit(id, "夜羽猎弓手", owner, 610, 74, 4, 70) {}
 
+NightArcherHero::NightArcherHero(const NightArcherHero& other) : Unit(other) {}
+
 void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -29,6 +33,8 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
 
 CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
     : Unit(id, "诅印重锤奴", owner, 980, 54, 1, 95) {}
+
+CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : Unit(other) {}
 
 void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
@@ -62,6 +68,8 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
 MistWitchHero::MistWitchHero(int id, UnitOwner owner)
     : Unit(id, "瘴雾魔女学徒", owner, 620, 44, 3, 80) {}
 
+MistWitchHero::MistWitchHero(const MistWitchHero& other) : Unit(other) {}
+
 void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -73,6 +81,8 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
 
 BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
     : Unit(id, "骨契祷告者", owner, 640, 38, 3, 85) {}
+
+BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : Unit(other) {}
 
 void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;

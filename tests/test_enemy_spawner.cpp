@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <stdexcept>
 #include <vector>
 
 #include "core/Board.h"
@@ -33,12 +34,12 @@ TEST(EnemySpawnerTest, Round1SpawnsOneEnemyOnBoard) {
     }
 }
 
-TEST(EnemySpawnerTest, InvalidRoundSpawnsEmpty) {
+TEST(EnemySpawnerTest, InvalidRoundThrowsOutOfRange) {
     Board board(8, 8, 8);
     EnemySpawner spawner;
     int nextId = 100;
-    std::vector<Unit*> spawned = spawner.spawnRound(99, board, nextId);
-    EXPECT_TRUE(spawned.empty());
+    // configForRound(99) の範囲外 → std::out_of_range がスローされる。
+    EXPECT_THROW(spawner.spawnRound(99, board, nextId), std::out_of_range);
 }
 
 TEST(EnemySpawnerTest, Round2SpawnsTwoEnemies) {

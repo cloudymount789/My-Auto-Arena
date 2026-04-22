@@ -1,5 +1,7 @@
 #include "core/EnemySpawner.h"
 
+#include <stdexcept>
+
 namespace my_auto_arena {
 namespace core {
 
@@ -17,13 +19,13 @@ public:
     SpawnedEnemyUnit(int id, const EnemyTemplate& tpl, int starLevel)
         : Unit(id, tpl.name, UnitOwner::enemy, scaleStat(tpl.hp, starLevel), scaleStat(tpl.atk, starLevel), tpl.range,
                tpl.maxMana) {}
+    // 显式拷贝构造函数：委托给 Unit，符合课程对所有实体类显式定义拷贝构造的要求。
+    SpawnedEnemyUnit(const SpawnedEnemyUnit& other) : Unit(other) {}
     virtual ~SpawnedEnemyUnit() override = default;
 };
 }  // namespace
 
 EnemySpawner::EnemySpawner() {}
-
-EnemySpawner::EnemySpawner(const EnemySpawner& other) { (void)other; }
 
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     static const std::vector<EnemyTemplate> kTemplates = {
@@ -38,6 +40,9 @@ const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
 }
 
 LevelConfig EnemySpawner::configForRound(int round) const {
+    if (round < 1 || round > 6) {
+        throw std::out_of_range("EnemySpawner: round index out of range [1..6].");
+    }
     LevelConfig cfg;
     cfg.roundIndex = round;
     cfg.onLosePlayerHpDamage = 0;
