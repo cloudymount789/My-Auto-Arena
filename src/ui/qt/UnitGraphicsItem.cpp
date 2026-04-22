@@ -68,29 +68,42 @@ void UnitGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
 }
 
 void UnitGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
+    if (event->button() != Qt::LeftButton) {
+        QGraphicsObject::mousePressEvent(event);
+        return;
+    }
+    // 必须 accept，否则场景不会把本项当作 mouse grabber，后续收不到 mouseMoveEvent（拖拽失效）。
+    event->accept();
     dragged_ = false;
     dragStartScenePos_ = scenePos();
     grabOffset_ = event->pos();
     setCursor(QCursor(Qt::ClosedHandCursor));
     setZValue(100.0);
-    QGraphicsObject::mousePressEvent(event);
 }
 
 void UnitGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
+    if (!(event->buttons() & Qt::LeftButton)) {
+        QGraphicsObject::mouseMoveEvent(event);
+        return;
+    }
+    event->accept();
     dragged_ = true;
     const QPointF topLeft = event->scenePos() - grabOffset_;
     setPos(topLeft);
     emit dragMoved(unitId_, event->scenePos());
-    QGraphicsObject::mouseMoveEvent(event);
 }
 
 void UnitGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
-    setCursor(QCursor(Qt::OpenHandCursor));
-    setZValue(10.0);
-    if (!dragged_) {
-        emit unitClicked(unitId_);
-    } else {
-        emit dragFinished(unitId_, event->scenePos());
+    if (event->button() == Qt::LeftButton) {
+        event->accept();
+        setCursor(QCursor(Qt::OpenHandCursor));
+        setZValue(10.0);
+        if (!dragged_) {
+            emit unitClicked(unitId_);
+        } else {
+            emit dragFinished(unitId_, event->scenePos());
+        }
+        return;
     }
     QGraphicsObject::mouseReleaseEvent(event);
 }

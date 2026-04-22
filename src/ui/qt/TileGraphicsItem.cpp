@@ -9,6 +9,8 @@ namespace ui {
 
 TileGraphicsItem::TileGraphicsItem(TileRegion region, int logicalRow, int logicalCol, const QRectF& rect)
     : QGraphicsRectItem(rect), region_(region), logicalRow_(logicalRow), logicalCol_(logicalCol), highlighted_(false) {
+    // 不抢占鼠标：格子上空白区域应把事件留给上层单位或其它项，避免“点到格边无法拖单位”。
+    setAcceptedMouseButtons(Qt::NoButton);
     QBrush brush(QColor("#E8E8E8"));
     if (region_ == TileRegion::kBoardPlayer) {
         brush.setColor(QColor("#D0E8FF"));

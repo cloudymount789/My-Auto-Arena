@@ -40,6 +40,14 @@
     └── code_analysis.md
 ```
 
+## 构建与运行（Qt GUI）
+
+1. 配置并生成工程：`cmake -S . -B build`（若找不到 Qt，请设置 `CMAKE_PREFIX_PATH` 指向 Qt 6 的 MSVC kit，或将 `Qt\bin` 加入 `PATH`）。
+2. 仅编译图形前端：`cmake --build build --config Debug --target my_auto_arena_qt`
+3. 运行：`build\Debug\my_auto_arena_qt.exe`（若缺 DLL，将对应 `Qt\bin` 加入环境变量或对 exe 执行 `windeployqt`）。
+
+棋盘拖拽由 `UnitGraphicsItem` 发出信号、`ArenaScene` 调用 `DragDropHandler::execute` 完成逻辑放置；详见 `docs/code_analysis.md`。
+
 ## Core Classes and Data Structures
 
 - `Tile`
