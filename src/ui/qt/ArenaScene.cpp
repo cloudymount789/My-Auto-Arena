@@ -9,14 +9,16 @@
 namespace my_auto_arena {
 namespace ui {
 
-ArenaScene::ArenaScene(core::Board& board, core::Player& player, const std::vector<core::Unit*>& units, QObject* parent)
+ArenaScene::ArenaScene(core::Board& board, core::Player& player, std::map<int, core::Unit*>& unitsMap,
+                       QObject* parent)
     : QGraphicsScene(parent),
       board_(board),
       player_(player),
-      units_(units),
+      unitsMap_(unitsMap),
       dragHandler_(board, player),
       mapper_(board.rows(), board.cols(), board.benchSize(), 64.0, 20.0, 20.0, 24.0),
-      highlightedTile_(nullptr) {
+      highlightedTile_(nullptr),
+      dragEnabled_(true) {
     setSceneRect(0.0, 0.0, 600.0, 700.0);
 
     for (int row = 0; row < board.rows(); ++row) {
@@ -39,27 +41,73 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, const std::vect
         tileItems_.push_back(tile);
     }
 
-    for (std::size_t i = 0; i < units_.size(); ++i) {
-        core::Unit* unit = units_.at(i);
-        UnitGraphicsItem* item =
-            new UnitGraphicsItem(unit->id(), QString::fromStdString(unit->name()), unit->hp(), unit->maxHp(),
-                                 unit->mana(), unit->maxMana(), 64.0);
-        item->setZValue(10.0);
-        connect(item, SIGNAL(dragMoved(int, QPointF)), this, SLOT(onDragMoved(int, QPointF)));
-        connect(item, SIGNAL(dragFinished(int, QPointF)), this, SLOT(onDragFinished(int, QPointF)));
-        connect(item, SIGNAL(unitClicked(int)), this, SLOT(onUnitClicked(int)));
-        addItem(item);
-        unitItems_[unit->id()] = item;
+    for (std::map<int, core::Unit*>::iterator it = unitsMap_.begin(); it != unitsMap_.end(); ++it) {
+        createUnitItem(it->second);
     }
 
     syncUnitPositions();
 }
 
-const core::Unit* ArenaScene::unitById(int unitId) const {
-    for (std::size_t i = 0; i < units_.size(); ++i) {
-        if (units_.at(i)->id() == unitId) {
-            return units_.at(i);
+UnitGraphicsItem* ArenaScene::createUnitItem(core::Unit* unit) {
+    UnitGraphicsItem* item =
+        new UnitGraphicsItem(unit->id(), QString::fromStdString(unit->name()), unit->hp(), unit->maxHp(),
+                             unit->mana(), unit->maxMana(), 64.0);
+    item->setZValue(10.0);
+    connect(item, SIGNAL(dragMoved(int, QPointF)), this, SLOT(onDragMoved(int, QPointF)));
+    connect(item, SIGNAL(dragFinished(int, QPointF)), this, SLOT(onDragFinished(int, QPointF)));
+    connect(item, SIGNAL(unitClicked(int)), this, SLOT(onUnitClicked(int)));
+    addItem(item);
+    unitItems_[unit->id()] = item;
+    return item;
+}
+
+void ArenaScene::addUnitItem(core::Unit* unit) {
+    if (unitItems_.find(unit->id()) != unitItems_.end()) {
+        return;
+    }
+    UnitGraphicsItem* item = createUnitItem(unit);
+    double cx = 0.0;
+    double cy = 0.0;
+    const core::DragLocation loc = locateUnit(unit->id());
+    mapper_.locationToPixelCenter(loc, cx, cy);
+    const QRectF br = item->boundingRect();
+    item->setPos(cx - br.width() / 2.0, cy - br.height() / 2.0);
+    item->show();
+}
+
+void ArenaScene::syncAfterBattle(const std::map<int, core::Unit*>& unitsMap) {
+    // 移除不再存在于 unitsMap 的图元（战斗中阵亡的单位）。
+    std::vector<int> toRemove;
+    for (std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.begin(); it != unitItems_.end(); ++it) {
+        if (unitsMap.find(it->first) == unitsMap.end()) {
+            toRemove.push_back(it->first);
         }
+    }
+    for (std::size_t i = 0; i < toRemove.size(); ++i) {
+        std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.find(toRemove.at(i));
+        if (it != unitItems_.end()) {
+            removeItem(it->second);
+            delete it->second;
+            unitItems_.erase(it);
+        }
+    }
+    // 刷新幸存单位的血蓝条和位置。
+    for (std::map<int, core::Unit*>::const_iterator it = unitsMap.begin(); it != unitsMap.end(); ++it) {
+        const core::Unit* unit = it->second;
+        std::map<int, UnitGraphicsItem*>::iterator itemIt = unitItems_.find(unit->id());
+        if (itemIt != unitItems_.end()) {
+            itemIt->second->setStats(unit->hp(), unit->maxHp(), unit->mana(), unit->maxMana());
+        }
+    }
+    syncUnitPositions();
+}
+
+void ArenaScene::setDragEnabled(bool enabled) { dragEnabled_ = enabled; }
+
+const core::Unit* ArenaScene::unitById(int unitId) const {
+    std::map<int, core::Unit*>::const_iterator it = unitsMap_.find(unitId);
+    if (it != unitsMap_.end()) {
+        return it->second;
     }
     return nullptr;
 }
@@ -67,6 +115,9 @@ const core::Unit* ArenaScene::unitById(int unitId) const {
 void ArenaScene::rebuild() { syncUnitPositions(); }
 
 void ArenaScene::onDragMoved(int, QPointF scenePos) {
+    if (!dragEnabled_) {
+        return;
+    }
     core::DragLocation to = core::DragLocation::fromBench(0);
     if (!mapper_.pixelToLocation(scenePos.x(), scenePos.y(), to)) {
         clearTileHighlight();
@@ -96,6 +147,15 @@ void ArenaScene::onDragMoved(int, QPointF scenePos) {
 }
 
 void ArenaScene::onDragFinished(int unitId, QPointF releaseScenePos) {
+    if (!dragEnabled_) {
+        std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.find(unitId);
+        if (it != unitItems_.end()) {
+            snapBack(it->second);
+        }
+        clearTileHighlight();
+        return;
+    }
+
     std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.find(unitId);
     if (it == unitItems_.end()) {
         return;
