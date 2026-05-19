@@ -54,8 +54,9 @@ private:
     QTimer* battleTimer_;
     core::BattleEngine* battleEngine_;         // 当前战斗引擎，空闲时为 nullptr
     std::vector<core::Unit*> spawnedEnemies_;  // 本轮生成的敌方单位（用于结算时释放）
+    std::vector<core::Unit*> playerUnits_;     // 玩家英雄指针（永久持有，用于每轮复活与内存管理）
     core::LevelConfig currentLevelCfg_;        // 本轮配置（奖励/惩罚值）
-    static const int kTicksPerStep = 3;        // 每次定时器回调运行的 tick 数
+    static const int kTicksPerStep = 1;        // 每次定时器回调运行的 tick 数（1 = 最流畅动画）
 
     // ── Qt UI 组件 ───────────────────────────────────────────────
     ArenaScene* scene_;

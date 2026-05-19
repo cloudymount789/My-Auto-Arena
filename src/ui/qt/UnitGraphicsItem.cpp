@@ -11,7 +11,7 @@ namespace my_auto_arena {
 namespace ui {
 
 UnitGraphicsItem::UnitGraphicsItem(int unitId, const QString& name, int hp, int maxHp, int mana, int maxMana,
-                                   double tileSize)
+                                   double tileSize, bool isEnemy)
     : unitId_(unitId),
       name_(name),
       hp_(hp),
@@ -19,6 +19,7 @@ UnitGraphicsItem::UnitGraphicsItem(int unitId, const QString& name, int hp, int 
       mana_(mana),
       maxMana_(maxMana),
       tileSize_(tileSize),
+      isEnemy_(isEnemy),
       dragged_(false) {
     setAcceptedMouseButtons(Qt::LeftButton);
     setFlag(QGraphicsItem::ItemIsFocusable, true);
@@ -46,7 +47,9 @@ void UnitGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
     const QRectF r = boundingRect();
     painter->setRenderHint(QPainter::Antialiasing, true);
     painter->setPen(QPen(QColor("#222222")));
-    painter->setBrush(QBrush(QColor("#4A90D9")));
+    // 玩家单位：蓝色；敌方单位：红色，方便玩家区分阵营。
+    const QColor bodyColor = isEnemy_ ? QColor("#D94A4A") : QColor("#4A90D9");
+    painter->setBrush(QBrush(bodyColor));
     painter->drawRoundedRect(r, 8.0, 8.0);
 
     const double hpRatio = (maxHp_ > 0) ? static_cast<double>(hp_) / static_cast<double>(maxHp_) : 0.0;

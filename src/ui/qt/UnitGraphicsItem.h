@@ -10,7 +10,9 @@ namespace ui {
 class UnitGraphicsItem : public QGraphicsObject {
     Q_OBJECT
 public:
-    UnitGraphicsItem(int unitId, const QString& name, int hp, int maxHp, int mana, int maxMana, double tileSize);
+    // isEnemy: 敌方单位显示红色，玩家单位显示蓝色。
+    UnitGraphicsItem(int unitId, const QString& name, int hp, int maxHp, int mana, int maxMana, double tileSize,
+                     bool isEnemy);
 
     int unitId() const;
     void setStats(int hp, int maxHp, int mana, int maxMana);
@@ -37,6 +39,7 @@ private:
     int mana_;
     int maxMana_;
     double tileSize_;
+    bool isEnemy_;
     QPointF grabOffset_;
     QPointF dragStartScenePos_;
     bool dragged_;

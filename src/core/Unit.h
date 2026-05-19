@@ -35,6 +35,8 @@ public:
     void takeDamage(int amount);
     void gainMana(int amount);
     void heal(int amount);
+    // 每轮结算后将单位恢复满血/零蓝，无论是否已死亡。
+    void resetToFull();
 
     // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget);

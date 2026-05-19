@@ -95,6 +95,11 @@ void Unit::heal(int amount) {
 
 void Unit::spendAllMana() { mana_ = 0; }
 
+void Unit::resetToFull() {
+    hp_ = maxHp_;
+    mana_ = 0;
+}
+
 void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
     if (primaryTarget == nullptr || !primaryTarget->isAlive()) {
         return;

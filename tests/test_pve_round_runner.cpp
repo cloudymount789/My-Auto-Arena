@@ -6,9 +6,11 @@
 
 #include "core/Board.h"
 #include "core/EnemySpawner.h"
+#include "core/HeroUnits.h"
 #include "core/Player.h"
 #include "core/Unit.h"
 
+using my_auto_arena::core::AshRaiderHero;
 using my_auto_arena::core::Board;
 using my_auto_arena::core::EnemySpawner;
 using my_auto_arena::core::Player;
@@ -16,12 +18,12 @@ using my_auto_arena::core::Position;
 using my_auto_arena::core::PvERoundRunner;
 using my_auto_arena::core::RoundOutcome;
 using my_auto_arena::core::UnitOwner;
-using my_auto_arena::core::WarriorUnit;
 
+// AshRaiderHero: HP=2200, ATK=60, skill burst 300 → clearly beats a single 战士 enemy (HP=2200, no skill).
 TEST(PvERoundRunnerTest, Round1PlayerBeatsSingleEnemy) {
     Board board(8, 8, 8);
     Player player(1, 10, 100, 1, 8);
-    WarriorUnit ally(50, UnitOwner::player);
+    AshRaiderHero ally(50, UnitOwner::player);
     std::map<int, my_auto_arena::core::Unit*> units;
     units[ally.id()] = &ally;
     player.addUnit(ally.id());

@@ -3,8 +3,9 @@
 namespace my_auto_arena {
 namespace core {
 
+// 战士：近战爆发，HP 厚实，技能：对主目标造成 300 点爆发伤害。
 AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
-    : Unit(id, "灰烬掠袭者", owner, 680, 70, 1, 65) {}
+    : Unit(id, "战士", owner, 2200, 60, 1, 80) {}
 
 AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : Unit(other) {}
 
@@ -12,13 +13,14 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(180);
+        primaryTarget->takeDamage(300);
     }
     spendAllMana();
 }
 
+// 射手：远程输出（射程 4），技能：对主目标造成 320 点穿透伤害。
 NightArcherHero::NightArcherHero(int id, UnitOwner owner)
-    : Unit(id, "夜羽猎弓手", owner, 610, 74, 4, 70) {}
+    : Unit(id, "射手", owner, 1800, 55, 4, 90) {}
 
 NightArcherHero::NightArcherHero(const NightArcherHero& other) : Unit(other) {}
 
@@ -26,13 +28,14 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(210);
+        primaryTarget->takeDamage(320);
     }
     spendAllMana();
 }
 
+// 重甲战士：坦克近战，AOE 技能：对周围 4 相邻格敌方各造成 180 点伤害。
 CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
-    : Unit(id, "诅印重锤奴", owner, 980, 54, 1, 95) {}
+    : Unit(id, "重甲战士", owner, 3200, 48, 1, 100) {}
 
 CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : Unit(other) {}
 
@@ -59,14 +62,15 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         }
         Unit* other = it->second;
         if (other->isAlive() && other->owner() != owner()) {
-            other->takeDamage(120);
+            other->takeDamage(180);
         }
     }
     spendAllMana();
 }
 
+// 法师：中程法术输出，技能：对主目标造成 350 点法术伤害。
 MistWitchHero::MistWitchHero(int id, UnitOwner owner)
-    : Unit(id, "瘴雾魔女学徒", owner, 620, 44, 3, 80) {}
+    : Unit(id, "法师", owner, 1500, 35, 3, 90) {}
 
 MistWitchHero::MistWitchHero(const MistWitchHero& other) : Unit(other) {}
 
@@ -74,13 +78,14 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(90);
+        primaryTarget->takeDamage(350);
     }
     spendAllMana();
 }
 
+// 治疗师：辅助单位，技能：为血量最低的友方治疗 500 点；无其他友方则自愈 400 点。
 BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
-    : Unit(id, "骨契祷告者", owner, 640, 38, 3, 85) {}
+    : Unit(id, "治疗师", owner, 1800, 30, 3, 100) {}
 
 BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : Unit(other) {}
 
@@ -100,9 +105,9 @@ void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units
         }
     }
     if (best != nullptr) {
-        best->heal(150);
+        best->heal(500);
     } else {
-        heal(120);
+        heal(400);
     }
     (void)board;
     spendAllMana();

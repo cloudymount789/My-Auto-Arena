@@ -37,7 +37,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
       nextRoundBtn_(nullptr) {
 
     // ── 初始化玩家英雄单位 ────────────────────────────────────────
-    // 使用五种英雄中的三种，便于 Phase 2 技能验收演示。
+    // 战士 + 射手 + 治疗师，覆盖近战/远程/辅助三种技能模板。
     core::Unit* hero1 = new core::AshRaiderHero(1, core::UnitOwner::player);
     core::Unit* hero2 = new core::NightArcherHero(2, core::UnitOwner::player);
     core::Unit* hero3 = new core::BonePrayerHero(3, core::UnitOwner::player);
@@ -45,6 +45,11 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     unitsMap_[hero1->id()] = hero1;
     unitsMap_[hero2->id()] = hero2;
     unitsMap_[hero3->id()] = hero3;
+
+    // playerUnits_ 永久持有玩家英雄指针，用于每轮结束后复活并放回备战区。
+    playerUnits_.push_back(hero1);
+    playerUnits_.push_back(hero2);
+    playerUnits_.push_back(hero3);
 
     player_.addUnit(1);
     player_.addUnit(2);
@@ -126,6 +131,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
 
     battleTimer_ = new QTimer(this);
     battleTimer_->setSingleShot(false);
+    battleTimer_->setInterval(250);  // 250ms/tick：保证移动和技能触发清晰可见
     connect(battleTimer_, SIGNAL(timeout()), this, SLOT(onBattleTick()));
 
     setWindowTitle("Synera: Synergy Auto-Arena — Phase 1 + Phase 2");
@@ -134,20 +140,27 @@ QtMainWindow::QtMainWindow(QWidget* parent)
 }
 
 QtMainWindow::~QtMainWindow() {
-    // 确保定时器已停止，避免析构期间回调。
+    // 确保定时器已停止，避免析构期间触发回调。
     if (battleTimer_ != nullptr) {
         battleTimer_->stop();
     }
     delete battleEngine_;
     battleEngine_ = nullptr;
 
-    // 释放所有存活单位（玩家单位 + 可能残留的敌方单位）。
+    // 释放所有仍在 unitsMap_ 中的单位（包括幸存敌方和玩家英雄）。
     for (std::map<int, core::Unit*>::iterator it = unitsMap_.begin(); it != unitsMap_.end(); ++it) {
         delete it->second;
     }
-    // 释放已从 unitsMap_ 移除但尚未 delete 的战斗阵亡敌方单位。
+    // 释放战斗中阵亡的敌方单位（已被 clearDeadUnits 移出 unitsMap_ 但尚未 delete）。
     for (std::size_t i = 0; i < spawnedEnemies_.size(); ++i) {
         core::Unit* unit = spawnedEnemies_.at(i);
+        if (unitsMap_.find(unit->id()) == unitsMap_.end()) {
+            delete unit;
+        }
+    }
+    // 释放战斗中阵亡的玩家英雄（同上，被 clearDeadUnits 移出但未 delete）。
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        core::Unit* unit = playerUnits_.at(i);
         if (unitsMap_.find(unit->id()) == unitsMap_.end()) {
             delete unit;
         }
@@ -184,6 +197,12 @@ void QtMainWindow::onStartBattle() {
         return;
     }
 
+    // 至少一名英雄须在棋盘上才能开战。
+    if (player_.populationOnBoard(board_) == 0) {
+        statusBar()->showMessage("请先将英雄拖入下半场棋盘再开始战斗！", 2500);
+        return;
+    }
+
     // 阶段切换：准备 → 战斗
     fsm_.startBattle();
     scene_->setDragEnabled(false);
@@ -203,10 +222,10 @@ void QtMainWindow::onStartBattle() {
         scene_->addUnitItem(unit);
     }
 
-    // 创建战斗引擎并启动定时器（每 150ms 推进若干 tick）
+    // 创建战斗引擎并启动定时器（interval 在构造时已设置为 250ms）
     battleEngine_ = new core::BattleEngine(board_, unitsMap_);
     battleEngine_->setDefeatHpPenalty(currentLevelCfg_.onLosePlayerHpDamage);
-    battleTimer_->start(150);
+    battleTimer_->start();
 }
 
 void QtMainWindow::onBattleTick() {
@@ -261,6 +280,46 @@ void QtMainWindow::doSettlement() {
     // 移除存活的敌方单位（清理 Board 与 unitsMap_，delete 指针）
     core::PvERoundRunner::removeEnemyUnits(board_, unitsMap_);
     scene_->syncAfterBattle(unitsMap_);
+
+    // ── 复活并归还所有玩家英雄 ─────────────────────────────────
+    // Phase 1：将战斗中阵亡的英雄重新加入 unitsMap_，并对所有英雄执行满血/零蓝重置。
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        core::Unit* hero = playerUnits_.at(i);
+        unitsMap_[hero->id()] = hero;  // 阵亡英雄已被 clearDeadUnits 移出，此处重新注册
+        hero->resetToFull();
+    }
+    // Phase 2：清除英雄在棋盘和备战区的旧占位（战斗中移动会改变棋盘位置）。
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        const int heroId = playerUnits_.at(i)->id();
+        const core::Position pos = board_.findUnitOnBoard(heroId);
+        if (board_.inBounds(pos)) {
+            board_.clearOnBoard(pos);
+        }
+        for (int slot = 0; slot < board_.benchSize(); ++slot) {
+            if (board_.occupantOnBench(slot) == heroId) {
+                board_.clearOnBench(slot);
+                break;
+            }
+        }
+    }
+    // Phase 3：将所有英雄按顺序放回备战区（靠左对齐）。
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        const int heroId = playerUnits_.at(i)->id();
+        for (int slot = 0; slot < board_.benchSize(); ++slot) {
+            if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
+                board_.placeOnBench(heroId, slot);
+                break;
+            }
+        }
+    }
+    // Phase 4：刷新场景——为阵亡英雄创建新图元，更新幸存英雄满血状态，吸附到备战区。
+    scene_->syncAfterBattle(unitsMap_);
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        scene_->addUnitItem(playerUnits_.at(i));  // 已有图元则跳过，阵亡后重建
+    }
+    scene_->rebuild();
+    scene_->setDragEnabled(true);
+    // ─────────────────────────────────────────────────────────────
 
     delete battleEngine_;
     battleEngine_ = nullptr;

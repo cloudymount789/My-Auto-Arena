@@ -22,9 +22,9 @@ TEST(EnemySpawnerTest, Round1SpawnsOneEnemyOnBoard) {
     std::vector<Unit*> spawned = spawner.spawnRound(1, board, nextId);
     ASSERT_EQ(spawned.size(), 1);
     EXPECT_EQ(spawned.at(0)->owner(), UnitOwner::enemy);
-    EXPECT_EQ(spawned.at(0)->name(), "灰烬掠袭者");
-    EXPECT_EQ(spawned.at(0)->hp(), 680);
-    EXPECT_EQ(spawned.at(0)->attack(), 70);
+    EXPECT_EQ(spawned.at(0)->name(), "战士");
+    EXPECT_EQ(spawned.at(0)->hp(), 2200);
+    EXPECT_EQ(spawned.at(0)->attack(), 62);
 
     const my_auto_arena::core::Position pos = board.findUnitOnBoard(spawned.at(0)->id());
     EXPECT_TRUE(board.inBounds(pos));
