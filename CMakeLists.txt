@@ -22,6 +22,11 @@ add_library(game_core
     src/core/HeroUnits.cpp
     src/core/PvERoundRunner.cpp
     src/core/DragDropHandler.cpp
+    src/core/Item.cpp
+    src/core/Shop.cpp
+    src/core/SynergySystem.cpp
+    src/core/StarUpgrade.cpp
+    src/core/SaveManager.cpp
     src/ui/ConsoleRenderer.cpp
 )
 
@@ -45,6 +50,7 @@ if(BUILD_QT_GUI)
             src/ui/qt/UnitGraphicsItem.cpp
             src/ui/qt/ArenaScene.cpp
             src/ui/qt/UnitInfoPanel.cpp
+            src/ui/qt/ShopPanel.cpp
             src/ui/qt/QtMainWindow.cpp
         )
         target_include_directories(qt_gui_lib PUBLIC src)

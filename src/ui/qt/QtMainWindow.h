@@ -4,6 +4,7 @@
 #include <map>
 #include <vector>
 
+#include <QFileDialog>
 #include <QGraphicsView>
 #include <QLabel>
 #include <QMainWindow>
@@ -16,18 +17,24 @@
 #include "core/EnemySpawner.h"
 #include "core/GameFSM.h"
 #include "core/HeroUnits.h"
+#include "core/Item.h"
 #include "core/Player.h"
 #include "core/PvERoundRunner.h"
+#include "core/SaveManager.h"
+#include "core/Shop.h"
+#include "core/StarUpgrade.h"
+#include "core/SynergySystem.h"
 #include "core/Unit.h"
 
 namespace my_auto_arena {
 namespace ui {
 
 class ArenaScene;
+class ShopPanel;
 class UnitInfoPanel;
 
-// 主窗口：持有所有游戏状态（棋盘、玩家、单位、FSM、生成器），
-// 并通过控制面板驱动 Phase 2 的 准备 → 战斗 → 结算 循环。
+// 主窗口：持有所有游戏状态（棋盘、玩家、单位、FSM、商店、羁绊等），
+// 并通过控制面板驱动 Phase 3 的完整游戏循环。
 class QtMainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -41,6 +48,14 @@ private slots:
     void onNextRound();
     void onBattleTick();  // 定时器每步回调：推进若干 tick 并刷新场景
 
+    // Phase 3 新增槽函数
+    void onHeroPurchased(int slotIndex);
+    void onShopRefresh();
+    void onSellUnit(int unitId);
+    void onLevelUp();
+    void onSaveGame();
+    void onLoadGame();
+
 private:
     // ── 游戏核心状态 ─────────────────────────────────────────────
     core::Board board_;
@@ -48,7 +63,9 @@ private:
     std::map<int, core::Unit*> unitsMap_;  // 玩家+敌方单位均在此注册；敌方由 doSettlement 负责释放
     core::GameFSM fsm_;
     core::EnemySpawner spawner_;
-    int nextUnitId_;                       // 敌方单位 ID 分配计数器（从 100 开始）
+    core::Shop shop_;
+    std::vector<core::ItemType> pendingItems_;  // 已获得尚未装备的道具
+    int nextUnitId_;                            // 单位 ID 分配计数器（从 100 开始）
 
     // ── 战斗动画状态 ─────────────────────────────────────────────
     QTimer* battleTimer_;
@@ -62,20 +79,31 @@ private:
     ArenaScene* scene_;
     QGraphicsView* view_;
     UnitInfoPanel* infoPanel_;
+    ShopPanel* shopPanel_;
 
     // 控制面板标签
     QLabel* phaseLabel_;
     QLabel* roundLabel_;
     QLabel* playerHpLabel_;
     QLabel* playerGoldLabel_;
+    QLabel* populationLabel_;
+    QLabel* synergyLabel_;
 
     // 控制按钮
     QPushButton* startBattleBtn_;
     QPushButton* nextRoundBtn_;
+    QPushButton* levelUpBtn_;
+    QPushButton* saveBtn_;
+    QPushButton* loadBtn_;
 
     // ── 辅助方法 ─────────────────────────────────────────────────
     void updateStatusPanel();
+    void updateSynergyDisplay();
+    void updateShopDisplay();
     void doSettlement();  // 战斗结束后：结算金币/HP、清理单位、切换 FSM
+
+    // 将新购英雄放置到备战区第一个空槽；返回是否成功。
+    bool placeHeroOnBench(core::Unit* hero);
 };
 
 }  // namespace ui

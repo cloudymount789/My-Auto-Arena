@@ -12,10 +12,12 @@ class UnitGraphicsItem : public QGraphicsObject {
 public:
     // isEnemy: 敌方单位显示红色，玩家单位显示蓝色。
     UnitGraphicsItem(int unitId, const QString& name, int hp, int maxHp, int mana, int maxMana, double tileSize,
-                     bool isEnemy);
+                     bool isEnemy, int starLevel = 1);
 
     int unitId() const;
     void setStats(int hp, int maxHp, int mana, int maxMana);
+    // 更新星级显示（升星后调用）。
+    void setStarLevel(int starLevel);
     QPointF dragStartScenePos() const;
 
     QRectF boundingRect() const override;
@@ -40,6 +42,7 @@ private:
     int maxMana_;
     double tileSize_;
     bool isEnemy_;
+    int starLevel_;
     QPointF grabOffset_;
     QPointF dragStartScenePos_;
     bool dragged_;

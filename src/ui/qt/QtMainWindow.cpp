@@ -1,5 +1,6 @@
 #include "ui/qt/QtMainWindow.h"
 
+#include <QFileDialog>
 #include <QGraphicsView>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -12,6 +13,7 @@
 
 #include "core/BattleEngine.h"
 #include "ui/qt/ArenaScene.h"
+#include "ui/qt/ShopPanel.h"
 #include "ui/qt/UnitInfoPanel.h"
 
 namespace my_auto_arena {
@@ -23,21 +25,27 @@ QtMainWindow::QtMainWindow(QWidget* parent)
       player_(1, 10, 100, 1, 3),
       fsm_(),
       spawner_(),
+      shop_(),
       nextUnitId_(100),
       battleTimer_(nullptr),
       battleEngine_(nullptr),
       scene_(nullptr),
       view_(nullptr),
       infoPanel_(nullptr),
+      shopPanel_(nullptr),
       phaseLabel_(nullptr),
       roundLabel_(nullptr),
       playerHpLabel_(nullptr),
       playerGoldLabel_(nullptr),
+      populationLabel_(nullptr),
+      synergyLabel_(nullptr),
       startBattleBtn_(nullptr),
-      nextRoundBtn_(nullptr) {
+      nextRoundBtn_(nullptr),
+      levelUpBtn_(nullptr),
+      saveBtn_(nullptr),
+      loadBtn_(nullptr) {
 
     // ── 初始化玩家英雄单位 ────────────────────────────────────────
-    // 战士 + 射手 + 治疗师，覆盖近战/远程/辅助三种技能模板。
     core::Unit* hero1 = new core::AshRaiderHero(1, core::UnitOwner::player);
     core::Unit* hero2 = new core::NightArcherHero(2, core::UnitOwner::player);
     core::Unit* hero3 = new core::BonePrayerHero(3, core::UnitOwner::player);
@@ -46,7 +54,6 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     unitsMap_[hero2->id()] = hero2;
     unitsMap_[hero3->id()] = hero3;
 
-    // playerUnits_ 永久持有玩家英雄指针，用于每轮结束后复活并放回备战区。
     playerUnits_.push_back(hero1);
     playerUnits_.push_back(hero2);
     playerUnits_.push_back(hero3);
@@ -62,6 +69,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     // ── 构建 UI 布局 ──────────────────────────────────────────────
     QWidget* central = new QWidget(this);
     QVBoxLayout* mainLayout = new QVBoxLayout(central);
+    mainLayout->setSpacing(6);
     setCentralWidget(central);
 
     // 上方：棋盘视图 + 信息面板
@@ -73,18 +81,36 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     view_->setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
     view_->setFixedSize(640, 660);
 
-    infoPanel_ = new UnitInfoPanel(gameArea);
-    infoPanel_->setFixedWidth(220);
+    // 右侧信息+商店面板
+    QWidget* rightPanel = new QWidget(gameArea);
+    rightPanel->setFixedWidth(240);
+    QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
+    rightLayout->setContentsMargins(0, 0, 0, 0);
+    rightLayout->setSpacing(6);
+
+    infoPanel_ = new UnitInfoPanel(rightPanel);
+    shopPanel_ = new ShopPanel(rightPanel);
+
+    synergyLabel_ = new QLabel("羁绊: -", rightPanel);
+    synergyLabel_->setStyleSheet(
+        "background-color: #181825; color: #CBA6F7; font-size: 11px;"
+        " border-radius: 4px; padding: 4px;");
+    synergyLabel_->setWordWrap(true);
+
+    rightLayout->addWidget(infoPanel_);
+    rightLayout->addWidget(shopPanel_);
+    rightLayout->addWidget(synergyLabel_);
+    rightLayout->addStretch();
 
     gameLayout->addWidget(view_);
-    gameLayout->addWidget(infoPanel_);
+    gameLayout->addWidget(rightPanel);
 
     // 下方：控制面板
     QWidget* controlBar = new QWidget(central);
     controlBar->setStyleSheet("background-color: #1E1E2E; color: #CDD6F4; border-radius: 6px;");
     QHBoxLayout* controlLayout = new QHBoxLayout(controlBar);
     controlLayout->setContentsMargins(12, 8, 12, 8);
-    controlLayout->setSpacing(16);
+    controlLayout->setSpacing(10);
 
     phaseLabel_ = new QLabel("准备阶段", controlBar);
     phaseLabel_->setStyleSheet("font-weight: bold; font-size: 14px; color: #89DCEB; min-width: 80px;");
@@ -98,70 +124,90 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     playerGoldLabel_ = new QLabel("金币: 10", controlBar);
     playerGoldLabel_->setStyleSheet("font-size: 13px; color: #F9E2AF; min-width: 70px;");
 
+    populationLabel_ = new QLabel("人口: 0/3", controlBar);
+    populationLabel_->setStyleSheet("font-size: 13px; color: #CDD6F4; min-width: 70px;");
+
+    const QString btnStyle =
+        "QPushButton { background-color: %1; color: #1E1E2E; font-weight: bold;"
+        " border-radius: 5px; padding: 5px 10px; }"
+        "QPushButton:disabled { background-color: #45475A; color: #6C7086; }";
+
     startBattleBtn_ = new QPushButton("⚔ 开始战斗", controlBar);
-    startBattleBtn_->setFixedWidth(110);
-    startBattleBtn_->setStyleSheet(
-        "QPushButton { background-color: #F38BA8; color: #1E1E2E; font-weight: bold;"
-        " border-radius: 5px; padding: 6px 12px; }"
-        "QPushButton:disabled { background-color: #45475A; color: #6C7086; }");
+    startBattleBtn_->setStyleSheet(btnStyle.arg("#F38BA8"));
 
     nextRoundBtn_ = new QPushButton("▶ 下一轮", controlBar);
-    nextRoundBtn_->setFixedWidth(100);
     nextRoundBtn_->setEnabled(false);
-    nextRoundBtn_->setStyleSheet(
-        "QPushButton { background-color: #89DCEB; color: #1E1E2E; font-weight: bold;"
-        " border-radius: 5px; padding: 6px 12px; }"
-        "QPushButton:disabled { background-color: #45475A; color: #6C7086; }");
+    nextRoundBtn_->setStyleSheet(btnStyle.arg("#89DCEB"));
+
+    levelUpBtn_ = new QPushButton("升级人口", controlBar);
+    levelUpBtn_->setStyleSheet(btnStyle.arg("#A6E3A1"));
+
+    saveBtn_ = new QPushButton("存档", controlBar);
+    saveBtn_->setStyleSheet(btnStyle.arg("#CBA6F7"));
+
+    loadBtn_ = new QPushButton("读档", controlBar);
+    loadBtn_->setStyleSheet(btnStyle.arg("#FAB387"));
 
     controlLayout->addWidget(phaseLabel_);
     controlLayout->addWidget(roundLabel_);
     controlLayout->addWidget(playerHpLabel_);
     controlLayout->addWidget(playerGoldLabel_);
+    controlLayout->addWidget(populationLabel_);
     controlLayout->addStretch();
+    controlLayout->addWidget(levelUpBtn_);
+    controlLayout->addWidget(saveBtn_);
+    controlLayout->addWidget(loadBtn_);
     controlLayout->addWidget(startBattleBtn_);
     controlLayout->addWidget(nextRoundBtn_);
 
     mainLayout->addWidget(gameArea);
     mainLayout->addWidget(controlBar);
 
+    // ── 信号连接 ─────────────────────────────────────────────────
     connect(scene_, SIGNAL(unitSelected(int)), this, SLOT(onUnitSelected(int)));
     connect(scene_, SIGNAL(dragResultReady(core::DragResult)), this, SLOT(onDragResult(core::DragResult)));
     connect(startBattleBtn_, SIGNAL(clicked()), this, SLOT(onStartBattle()));
     connect(nextRoundBtn_, SIGNAL(clicked()), this, SLOT(onNextRound()));
+    connect(shopPanel_, SIGNAL(heroPurchased(int)), this, SLOT(onHeroPurchased(int)));
+    connect(shopPanel_, SIGNAL(refreshRequested()), this, SLOT(onShopRefresh()));
+    connect(infoPanel_, SIGNAL(sellRequested(int)), this, SLOT(onSellUnit(int)));
+    connect(levelUpBtn_, SIGNAL(clicked()), this, SLOT(onLevelUp()));
+    connect(saveBtn_, SIGNAL(clicked()), this, SLOT(onSaveGame()));
+    connect(loadBtn_, SIGNAL(clicked()), this, SLOT(onLoadGame()));
 
     battleTimer_ = new QTimer(this);
     battleTimer_->setSingleShot(false);
-    battleTimer_->setInterval(250);  // 250ms/tick：保证移动和技能触发清晰可见
+    battleTimer_->setInterval(250);
     connect(battleTimer_, SIGNAL(timeout()), this, SLOT(onBattleTick()));
 
-    setWindowTitle("Synera: Synergy Auto-Arena — Phase 1 + Phase 2");
-    resize(880, 780);
+    updateStatusPanel();
+    updateShopDisplay();
+    updateSynergyDisplay();
+
+    setWindowTitle("Synera: Synergy Auto-Arena — Phase 3");
+    resize(920, 800);
     statusBar()->showMessage("将英雄拖入下半场，点击「开始战斗」");
 }
 
 QtMainWindow::~QtMainWindow() {
-    // 确保定时器已停止，避免析构期间触发回调。
     if (battleTimer_ != nullptr) {
         battleTimer_->stop();
     }
     delete battleEngine_;
     battleEngine_ = nullptr;
 
-    // 释放所有仍在 unitsMap_ 中的单位（包括幸存敌方和玩家英雄）。
     for (std::map<int, core::Unit*>::iterator it = unitsMap_.begin(); it != unitsMap_.end(); ++it) {
         delete it->second;
     }
-    // 释放战斗中阵亡的敌方单位（已被 clearDeadUnits 移出 unitsMap_ 但尚未 delete）。
     for (std::size_t i = 0; i < spawnedEnemies_.size(); ++i) {
         core::Unit* unit = spawnedEnemies_.at(i);
         if (unitsMap_.find(unit->id()) == unitsMap_.end()) {
             delete unit;
         }
     }
-    // 释放战斗中阵亡的玩家英雄（同上，被 clearDeadUnits 移出但未 delete）。
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
         core::Unit* unit = playerUnits_.at(i);
-        if (unitsMap_.find(unit->id()) == unitsMap_.end()) {
+        if (unit != nullptr && unitsMap_.find(unit->id()) == unitsMap_.end()) {
             delete unit;
         }
     }
@@ -185,6 +231,7 @@ void QtMainWindow::onDragResult(core::DragResult result) {
     } else {
         statusBar()->showMessage("非法操作", 1500);
     }
+    updateStatusPanel();
 }
 
 void QtMainWindow::onStartBattle() {
@@ -196,14 +243,11 @@ void QtMainWindow::onStartBattle() {
         QMessageBox::information(this, "恭喜通关", "已通过全部 6 关！");
         return;
     }
-
-    // 至少一名英雄须在棋盘上才能开战。
     if (player_.populationOnBoard(board_) == 0) {
         statusBar()->showMessage("请先将英雄拖入下半场棋盘再开始战斗！", 2500);
         return;
     }
 
-    // 阶段切换：准备 → 战斗
     fsm_.startBattle();
     scene_->setDragEnabled(false);
     startBattleBtn_->setEnabled(false);
@@ -214,7 +258,7 @@ void QtMainWindow::onStartBattle() {
     currentLevelCfg_ = spawner_.configForRound(round);
     statusBar()->showMessage(QString("第 %1 轮：战斗开始！").arg(round));
 
-    // 生成敌方单位并添加到场景
+    // 生成敌方单位并添加到场景。
     spawnedEnemies_ = spawner_.spawnRound(round, board_, nextUnitId_);
     for (std::size_t i = 0; i < spawnedEnemies_.size(); ++i) {
         core::Unit* unit = spawnedEnemies_.at(i);
@@ -222,7 +266,10 @@ void QtMainWindow::onStartBattle() {
         scene_->addUnitItem(unit);
     }
 
-    // 创建战斗引擎并启动定时器（interval 在构造时已设置为 250ms）
+    // 战斗开始前施加羁绊 BUFF。
+    core::SynergySystem::applyBuffs(board_, unitsMap_);
+    updateSynergyDisplay();
+
     battleEngine_ = new core::BattleEngine(board_, unitsMap_);
     battleEngine_->setDefeatHpPenalty(currentLevelCfg_.onLosePlayerHpDamage);
     battleTimer_->start();
@@ -233,13 +280,9 @@ void QtMainWindow::onBattleTick() {
         battleTimer_->stop();
         return;
     }
-
-    // 每次定时器触发推进若干 tick，让移动和技能触发有时间显示在画面上
     for (int i = 0; i < kTicksPerStep && !battleEngine_->isFinished(); ++i) {
         battleEngine_->tick();
     }
-
-    // 刷新单位位置与血蓝条；移除阵亡单位图元
     scene_->syncAfterBattle(unitsMap_);
     statusBar()->showMessage(QString("⚔ 战斗中... Tick %1").arg(battleEngine_->tickCount()));
 
@@ -256,7 +299,7 @@ void QtMainWindow::doSettlement() {
 
     core::RoundOutcome outcome = battleEngine_->outcome();
 
-    // 释放战斗期间阵亡的敌方单位（已被 BattleEngine 从 unitsMap_ 移除但未 delete）
+    // 释放战斗期间阵亡的敌方单位。
     for (std::size_t i = 0; i < spawnedEnemies_.size(); ++i) {
         core::Unit* unit = spawnedEnemies_.at(i);
         if (unitsMap_.find(unit->id()) == unitsMap_.end()) {
@@ -265,11 +308,20 @@ void QtMainWindow::doSettlement() {
     }
     spawnedEnemies_.clear();
 
-    // 结算金币 / 玩家 HP
+    // 结算金币 / 玩家 HP。
     if (outcome.playerWon) {
         outcome.goldReward = currentLevelCfg_.winGoldReward;
         player_.setGold(player_.gold() + outcome.goldReward);
         outcome.gameOver = false;
+
+        // 胜利时随机给予一件道具（轮次 >= 2 才开始掉落）。
+        if (fsm_.currentRound() >= 2) {
+            const core::ItemType drops[4] = {
+                core::ItemType::kSword, core::ItemType::kArmor,
+                core::ItemType::kRing,  core::ItemType::kTalisman
+            };
+            pendingItems_.push_back(drops[std::rand() % 4]);
+        }
     } else {
         outcome.hpPenalty = currentLevelCfg_.onLosePlayerHpDamage;
         const int newHp = player_.hp() - outcome.hpPenalty;
@@ -277,18 +329,19 @@ void QtMainWindow::doSettlement() {
         outcome.gameOver = (player_.hp() <= 0);
     }
 
-    // 移除存活的敌方单位（清理 Board 与 unitsMap_，delete 指针）
+    // 移除存活的敌方单位（清理 Board 与 unitsMap_）。
     core::PvERoundRunner::removeEnemyUnits(board_, unitsMap_);
     scene_->syncAfterBattle(unitsMap_);
 
-    // ── 复活并归还所有玩家英雄 ─────────────────────────────────
-    // Phase 1：将战斗中阵亡的英雄重新加入 unitsMap_，并对所有英雄执行满血/零蓝重置。
+    // 清除羁绊 BUFF（战斗结束后所有玩家单位清零羁绊加成）。
+    core::SynergySystem::clearBuffs(playerUnits_);
+
+    // 复活并归还所有玩家英雄。
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
         core::Unit* hero = playerUnits_.at(i);
-        unitsMap_[hero->id()] = hero;  // 阵亡英雄已被 clearDeadUnits 移出，此处重新注册
+        unitsMap_[hero->id()] = hero;
         hero->resetToFull();
     }
-    // Phase 2：清除英雄在棋盘和备战区的旧占位（战斗中移动会改变棋盘位置）。
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
         const int heroId = playerUnits_.at(i)->id();
         const core::Position pos = board_.findUnitOnBoard(heroId);
@@ -302,7 +355,6 @@ void QtMainWindow::doSettlement() {
             }
         }
     }
-    // Phase 3：将所有英雄按顺序放回备战区（靠左对齐）。
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
         const int heroId = playerUnits_.at(i)->id();
         for (int slot = 0; slot < board_.benchSize(); ++slot) {
@@ -312,24 +364,33 @@ void QtMainWindow::doSettlement() {
             }
         }
     }
-    // Phase 4：刷新场景——为阵亡英雄创建新图元，更新幸存英雄满血状态，吸附到备战区。
+
     scene_->syncAfterBattle(unitsMap_);
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
-        scene_->addUnitItem(playerUnits_.at(i));  // 已有图元则跳过，阵亡后重建
+        scene_->addUnitItem(playerUnits_.at(i));
     }
     scene_->rebuild();
     scene_->setDragEnabled(true);
-    // ─────────────────────────────────────────────────────────────
 
     delete battleEngine_;
     battleEngine_ = nullptr;
 
-    // FSM：战斗 → 结算
+    // 检查升星（复活后）。
+    core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
+
+    // 刷新商店。
+    shop_ = core::Shop();
+    updateShopDisplay();
+    updateSynergyDisplay();
+
     fsm_.startSettlement(outcome);
     updateStatusPanel();
 
-    // 显示本轮结果
-    if (outcome.playerWon) {
+    if (!pendingItems_.empty()) {
+        statusBar()->showMessage(
+            QString("获得道具: %1 | 在信息面板选择英雄后装备")
+                .arg(QString::fromStdString(core::getItemDef(pendingItems_.back()).name)));
+    } else if (outcome.playerWon) {
         statusBar()->showMessage(
             QString("胜利！获得 %1 金币 | HP: %2").arg(outcome.goldReward).arg(player_.hp()));
     } else {
@@ -356,8 +417,6 @@ void QtMainWindow::onNextRound() {
         nextRoundBtn_->setEnabled(false);
         return;
     }
-
-    // 结算 → 准备
     fsm_.startNextRound();
     scene_->setDragEnabled(true);
     startBattleBtn_->setEnabled(true);
@@ -366,15 +425,226 @@ void QtMainWindow::onNextRound() {
     statusBar()->showMessage(QString("第 %1 轮准备中，请布置英雄阵型").arg(fsm_.currentRound()));
 }
 
+void QtMainWindow::onHeroPurchased(int slotIndex) {
+    if (!fsm_.canPlayerAct()) {
+        statusBar()->showMessage("战斗阶段无法购买英雄", 1500);
+        return;
+    }
+    int gold = player_.gold();
+    core::Unit* hero = shop_.buy(slotIndex, gold, nextUnitId_++);
+    if (hero == nullptr) {
+        statusBar()->showMessage("金币不足或槽位已售出", 1500);
+        return;
+    }
+    player_.setGold(gold);
+
+    if (!placeHeroOnBench(hero)) {
+        // 备战区已满，退款并删除英雄。
+        player_.setGold(player_.gold() + core::Shop::kHeroCost);
+        delete hero;
+        statusBar()->showMessage("备战区已满，无法购买", 1800);
+        return;
+    }
+
+    unitsMap_[hero->id()] = hero;
+    playerUnits_.push_back(hero);
+    player_.addUnit(hero->id());
+    scene_->addUnitItem(hero);
+    scene_->rebuild();
+
+    // 检查升星。
+    core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
+    scene_->syncAfterBattle(unitsMap_);
+    scene_->rebuild();
+
+    updateStatusPanel();
+    updateShopDisplay();
+    statusBar()->showMessage(
+        QString("购买 %1 成功").arg(QString::fromStdString(hero->name())), 1500);
+}
+
+void QtMainWindow::onShopRefresh() {
+    if (!fsm_.canPlayerAct()) {
+        statusBar()->showMessage("战斗阶段无法刷新商店", 1500);
+        return;
+    }
+    int gold = player_.gold();
+    shop_.refresh(gold);
+    player_.setGold(gold);
+    updateStatusPanel();
+    updateShopDisplay();
+}
+
+void QtMainWindow::onSellUnit(int unitId) {
+    if (!fsm_.canPlayerAct()) {
+        statusBar()->showMessage("战斗阶段无法出售英雄", 1500);
+        return;
+    }
+
+    // 查找单位。
+    std::map<int, core::Unit*>::iterator it = unitsMap_.find(unitId);
+    if (it == unitsMap_.end() || it->second == nullptr) {
+        return;
+    }
+    core::Unit* unit = it->second;
+    if (unit->owner() != core::UnitOwner::player) {
+        return;
+    }
+
+    const int gain = core::Shop::sellValue(unit->starLevel());
+    player_.setGold(player_.gold() + gain);
+
+    // 从棋盘/备战区移除占位。
+    const core::Position pos = board_.findUnitOnBoard(unitId);
+    if (board_.inBounds(pos)) {
+        board_.clearOnBoard(pos);
+    }
+    for (int slot = 0; slot < board_.benchSize(); ++slot) {
+        if (board_.occupantOnBench(slot) == unitId) {
+            board_.clearOnBench(slot);
+            break;
+        }
+    }
+
+    // 从场景移除图元。
+    scene_->syncAfterBattle(unitsMap_);
+
+    // 从玩家单位列表中移除。
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        if (playerUnits_.at(i) != nullptr && playerUnits_.at(i)->id() == unitId) {
+            playerUnits_.erase(playerUnits_.begin() + static_cast<int>(i));
+            break;
+        }
+    }
+    player_.removeUnit(unitId);
+    unitsMap_.erase(unitId);
+
+    // 从 unitsMap_ 移除后再同步场景（场景会删除对应图元）。
+    scene_->syncAfterBattle(unitsMap_);
+    scene_->rebuild();
+    infoPanel_->setUnit(nullptr);
+
+    delete unit;
+
+    updateStatusPanel();
+    updateShopDisplay();
+    statusBar()->showMessage(QString("出售英雄，获得 %1 金币").arg(gain), 1500);
+}
+
+void QtMainWindow::onLevelUp() {
+    if (!fsm_.canPlayerAct()) {
+        statusBar()->showMessage("战斗阶段无法升级", 1500);
+        return;
+    }
+    const int currentCap = player_.populationCap();
+    if (currentCap >= 8) {
+        statusBar()->showMessage("人口上限已达最大值 8", 1500);
+        return;
+    }
+    const int cost = currentCap * 2;
+    if (player_.gold() < cost) {
+        statusBar()->showMessage(QString("金币不足，升级需要 %1 金").arg(cost), 1800);
+        return;
+    }
+    player_.setGold(player_.gold() - cost);
+    player_.setPopulationCap(currentCap + 1);
+    updateStatusPanel();
+    statusBar()->showMessage(QString("人口上限提升到 %1").arg(player_.populationCap()), 1500);
+}
+
+void QtMainWindow::onSaveGame() {
+    const QString filepath = QFileDialog::getSaveFileName(
+        this, "保存游戏", "save_game.txt", "文本文件 (*.txt)");
+    if (filepath.isEmpty()) return;
+
+    const bool ok = core::SaveManager::save(
+        filepath.toStdString(), fsm_, player_, board_, playerUnits_, pendingItems_);
+    if (ok) {
+        statusBar()->showMessage("存档成功: " + filepath, 2000);
+    } else {
+        QMessageBox::warning(this, "存档失败", "无法写入存档文件！");
+    }
+}
+
+void QtMainWindow::onLoadGame() {
+    const QString filepath = QFileDialog::getOpenFileName(
+        this, "读取存档", "", "文本文件 (*.txt)");
+    if (filepath.isEmpty()) return;
+
+    const bool ok = core::SaveManager::load(
+        filepath.toStdString(), fsm_, player_, board_, playerUnits_, unitsMap_, pendingItems_);
+    if (ok) {
+        scene_->syncAfterBattle(unitsMap_);
+        for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+            scene_->addUnitItem(playerUnits_.at(i));
+        }
+        scene_->rebuild();
+        updateStatusPanel();
+        updateShopDisplay();
+        updateSynergyDisplay();
+        statusBar()->showMessage("读档成功", 2000);
+    } else {
+        QMessageBox::warning(this, "读档失败", "无法读取存档文件或格式错误！");
+    }
+}
+
+bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {
+    for (int slot = 0; slot < board_.benchSize(); ++slot) {
+        if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
+            board_.placeOnBench(hero->id(), slot);
+            return true;
+        }
+    }
+    return false;
+}
+
 void QtMainWindow::updateStatusPanel() {
     const QString phaseText =
-        (fsm_.currentPhase() == core::GamePhase::kPrepare)    ? "准备阶段"
-        : (fsm_.currentPhase() == core::GamePhase::kBattle)   ? "战斗阶段"
-                                                              : "结算阶段";
+        (fsm_.currentPhase() == core::GamePhase::kPrepare)  ? "准备阶段"
+        : (fsm_.currentPhase() == core::GamePhase::kBattle) ? "战斗阶段"
+                                                             : "结算阶段";
     phaseLabel_->setText(phaseText);
     roundLabel_->setText(QString("第 %1 轮").arg(fsm_.currentRound()));
     playerHpLabel_->setText(QString("HP: %1").arg(player_.hp()));
     playerGoldLabel_->setText(QString("金币: %1").arg(player_.gold()));
+
+    const int onBoard = player_.populationOnBoard(board_);
+    populationLabel_->setText(
+        QString("人口: %1/%2").arg(onBoard).arg(player_.populationCap()));
+
+    // 升级按钮显示当前费用。
+    if (player_.populationCap() < 8) {
+        const int cost = player_.populationCap() * 2;
+        levelUpBtn_->setText(QString("升级人口 -%1金").arg(cost));
+        levelUpBtn_->setEnabled(fsm_.canPlayerAct() && player_.gold() >= cost);
+    } else {
+        levelUpBtn_->setText("人口已满");
+        levelUpBtn_->setEnabled(false);
+    }
+}
+
+void QtMainWindow::updateSynergyDisplay() {
+    if (synergyLabel_ == nullptr) return;
+    const std::vector<core::ActiveSynergy> synergies =
+        core::SynergySystem::getActiveSynergies(board_, unitsMap_);
+
+    QString text;
+    for (std::size_t i = 0; i < synergies.size(); ++i) {
+        const core::ActiveSynergy& s = synergies.at(i);
+        if (s.activeThreshold > 0) {
+            text += QString("[%1 %2] %3\n")
+                        .arg(QString::fromStdString(s.name))
+                        .arg(s.count)
+                        .arg(QString::fromStdString(s.buffDescription));
+        }
+    }
+    synergyLabel_->setText(text.isEmpty() ? "羁绊: (无激活)" : text.trimmed());
+}
+
+void QtMainWindow::updateShopDisplay() {
+    if (shopPanel_ != nullptr) {
+        shopPanel_->updateDisplay(shop_, player_.gold());
+    }
 }
 
 }  // namespace ui

@@ -52,6 +52,12 @@ public:
     virtual ~BonePrayerHero() override = default;
 };
 
+// 英雄类型枚举：商店购买与工厂创建使用。
+enum class HeroType { kWarrior, kArcher, kTank, kMage, kHealer };
+
+// 英雄工厂函数：根据类型创建对应英雄实例（堆分配，调用方负责释放）。
+Unit* createHero(HeroType type, int id, UnitOwner owner);
+
 }  // namespace core
 }  // namespace my_auto_arena
 

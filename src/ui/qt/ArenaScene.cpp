@@ -52,7 +52,7 @@ UnitGraphicsItem* ArenaScene::createUnitItem(core::Unit* unit) {
     const bool isEnemy = (unit->owner() == core::UnitOwner::enemy);
     UnitGraphicsItem* item =
         new UnitGraphicsItem(unit->id(), QString::fromStdString(unit->name()), unit->hp(), unit->maxHp(),
-                             unit->mana(), unit->maxMana(), 64.0, isEnemy);
+                             unit->mana(), unit->maxMana(), 64.0, isEnemy, unit->starLevel());
     item->setZValue(10.0);
     connect(item, SIGNAL(dragMoved(int, QPointF)), this, SLOT(onDragMoved(int, QPointF)));
     connect(item, SIGNAL(dragFinished(int, QPointF)), this, SLOT(onDragFinished(int, QPointF)));

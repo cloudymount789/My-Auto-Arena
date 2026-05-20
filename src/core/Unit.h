@@ -4,6 +4,8 @@
 #include <map>
 #include <string>
 
+#include "core/Item.h"
+
 namespace my_auto_arena {
 namespace core {
 
@@ -11,10 +13,14 @@ class Board;
 
 enum class UnitOwner { player, enemy };
 
+// 职业分类：用于羁绊系统判断单位类型。
+enum class UnitClass { kNone, kWarrior, kArcher, kTank, kMage, kHealer };
+
 class Unit {
 public:
     // 战斗单位基类：管理通用属性与基础战斗行为。
-    Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana);
+    Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana,
+         UnitClass unitClass = UnitClass::kNone);
     // 按课程要求显式定义拷贝构造函数，便于讲解对象复制语义。
     Unit(const Unit& other);
     // 按 Rule of Three 要求配套定义拷贝赋值运算符。
@@ -25,18 +31,37 @@ public:
     const std::string& name() const;
     UnitOwner owner() const;
     int hp() const;
+    // maxHp() 含羁绊加成（bonusMaxHp_），不含装备（装备已直接加入 maxHp_）。
     int maxHp() const;
+    // attack() 含羁绊加成（bonusAtk_），不含装备（装备已直接加入 attack_）。
     int attack() const;
     int attackRange() const;
     int mana() const;
     int maxMana() const;
     bool isAlive() const;
 
+    // Phase 3 新增：职业、星级、装备 getter。
+    UnitClass unitClass() const;
+    int starLevel() const;
+    ItemType equippedItem() const;
+
     void takeDamage(int amount);
     void gainMana(int amount);
+    // heal() 上限为 maxHp()（含羁绊加成）。
     void heal(int amount);
-    // 每轮结算后将单位恢复满血/零蓝，无论是否已死亡。
+    // resetToFull() 将 hp_ 重置为 maxHp_+bonusMaxHp_，蓝量归零。
     void resetToFull();
+
+    // 装备管理：将装备属性直接叠加到 attack_/maxHp_；unequip 时减去。
+    void equipItem(ItemType item);
+    void unequipItem();
+
+    // 羁绊 BUFF：每轮战斗开始前设置，结束后清除。
+    void setSynergyBuffs(int bonusAtk, int bonusMaxHp);
+    void clearSynergyBuffs();
+
+    // 升星：用原始星1基础值乘以倍率（star2=×1.8，star3=×3.0），保留装备加成。
+    void upgradeToStar(int newStarLevel);
 
     // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget);
@@ -51,11 +76,19 @@ private:
     std::string name_;
     UnitOwner owner_;
     int hp_;
-    int maxHp_;
-    int attack_;
+    int maxHp_;       // 含装备加成，不含羁绊加成
+    int attack_;      // 含装备加成，不含羁绊加成
     int attackRange_;
     int mana_;
     int maxMana_;
+
+    UnitClass unitClass_;
+    int starLevel_;
+    ItemType equippedItem_;
+    int bonusAtk_;    // 羁绊系统临时加成
+    int bonusMaxHp_;  // 羁绊系统临时加成
+    int star1Atk_;    // 原始星级1攻击力（升星乘算用）
+    int star1MaxHp_;  // 原始星级1血量（升星乘算用）
 };
 
 class WarriorUnit final : public Unit {

@@ -20,6 +20,10 @@ add_executable(core_tests
     test_drag_drop.cpp
     test_console_renderer.cpp
     test_scene_coord_mapper.cpp
+    test_shop.cpp
+    test_synergy.cpp
+    test_star_upgrade.cpp
+    test_save.cpp
 )
 
 target_link_libraries(core_tests PRIVATE game_core gui_mapper GTest::gtest_main)
