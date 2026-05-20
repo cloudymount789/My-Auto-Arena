@@ -324,5 +324,66 @@ removeEnemyUnits(board, units)            → 清理敌方单位指针
 `PvERoundRunner::runRoundBattle` 返回 `RoundOutcome`，调用方将其传入 `GameFSM::startSettlement(outcome)`，完成阶段切换与结算数据记录。  
 两者职责明确分离：FSM 只管阶段流转，Runner 只管战斗驱动与资源结算。
 
+---
 
+## Phase 3 系统解析
 
+### 一、Item 系统
+`getItemDef(ItemType)` 使用函数内 `static const ItemDef` 静态表，避免全局初始化顺序问题。  
+`ItemType::kNone` 对应空装备（bonusAtk=0, bonusMaxHp=0），所有无装备单位可统一查表。
+
+### 二、Unit 扩展的设计考量
+- `attack_`/`maxHp_` 含装备加成（直接叠加），`bonusAtk_`/`bonusMaxHp_` 仅含羁绊加成
+- `attack()` = `attack_ + bonusAtk_`；`maxHp()` = `maxHp_ + bonusMaxHp_`
+- `star1Atk_`/`star1MaxHp_` 存储构造时的原始星1基础值，`upgradeToStar` 以此为基准乘以倍率后加回装备加成，避免升星与装备的交叉叠乘问题
+
+### 三、羁绊计算流程
+```
+战斗开始前：
+  SynergySystem::applyBuffs(board, units)
+    countClassOnBoard() ×4           // 统计棋盘上各职业玩家单位数
+    for each player unit on board:
+        u->setSynergyBuffs(atkBonus, hpBonus)
+
+结算后：
+  SynergySystem::clearBuffs(playerUnits)
+    for each player unit: clearSynergyBuffs()
+```
+羁绊 BUFF 是临时的，每轮重新计算，支持阵容变化实时反映。
+
+### 四、升星合并算法
+`StarUpgrade::tryMergeAll` 使用双循环 + 嵌套 while 扫描：
+1. 外循环遍历 `playerUnits`，找到 starLevel < 3 的基准单位
+2. 内循环扫描剩余单位，收集同名同星级的 unitId（最多收集 2 个）
+3. 找到 3 张后：`base->upgradeToStar(base->starLevel()+1)` 并调用 `removeUnit` 删除另外 2 张
+4. 一轮合并后 break 并重新开始 while，支持连锁升星（如 6 张 star1 → 2 张 star2）
+
+关键内存安全：`removeUnit` 先清棋盘/备战区占位，再 delete 指针，再 erase 迭代器，三步有序避免悬空。
+
+### 五、存档格式
+```
+# 注释行
+round=2
+player_hp=80
+player_gold=15
+player_pop_cap=4
+unit_count=2
+unit0_id=1
+unit0_name=战士
+unit0_class=warrior
+unit0_star=2
+unit0_item=sword
+unit0_loc=board
+unit0_row=6
+unit0_col=0
+unit1_...
+pending_item_count=1
+pending_item0=armor
+```
+读档用 `std::map<string,string>` 存储 key-value，通过 `kv.at(key)` 安全访问（缺失时抛出，被 try-catch 捕获并返回 false）。
+
+### 六、商店 UI 架构
+`ShopPanel` 用 `setProperty("slotIndex", i)` 给每个按钮附加槽索引，`onSlotClicked()` 槽通过 `sender()` 获取按钮并读取属性，避免 5 个独立槽函数的重复代码。
+
+### 七、人口升级定价
+`levelUpCost = populationCap * 2`，当前 3→4 需 6 金，4→5 需 8 金，最大上限 8（14 金才能升到上限），符合"早期扩张便宜、后期扩张越来越贵"的经济设计思路。

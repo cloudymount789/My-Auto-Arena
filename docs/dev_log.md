@@ -237,3 +237,83 @@
 - 阶段二全部 5 步通过验收：FSM + BattleEngine（含移动）+ BFS 寻路 + 5 英雄技能（多态）+ PvE 关卡推进
 - README.md、docs/code_analysis.md、docs/dev_log.md 同步更新，与代码实现对齐
 - 生成 `docs/gui_acceptance_phase2.md` 作为 Phase 1+2 GUI 验收操作指南
+
+---
+
+## 2026-05-20 — Phase 3 实现
+
+### 新增核心系统
+
+**Item 系统**
+- 定义 `ItemType` 枚举（kNone/kSword/kArmor/kRing/kTalisman）
+- `ItemDef` 结构体含 name/bonusAtk/bonusMaxHp
+- `getItemDef()` 静态表工厂
+
+**Unit 扩展**
+- 新增字段：`unitClass_`（职业）、`starLevel_`（1-3）、`equippedItem_`、`bonusAtk_`/`bonusMaxHp_`（羁绊临时加成）、`star1Atk_`/`star1MaxHp_`（原始星级1基础值，用于升星乘算）
+- `attack()` / `maxHp()` 改为返回含羁绊加成的有效值
+- `equipItem` / `unequipItem`：装备加成直接叠加到 `attack_`/`maxHp_`，卸装时减去
+- `setSynergyBuffs` / `clearSynergyBuffs`：羁绊 BUFF 管理
+- `upgradeToStar`：用 star1 基础值 × 倍率（star2=1.8, star3=3.0），保留装备加成
+- `resetToFull` 更新为含羁绊加成的满血
+
+**HeroUnits**
+- 5 英雄构造函数增加 `UnitClass` 参数
+- 新增 `HeroType` 枚举与 `createHero()` 工厂函数
+
+**Shop 系统**
+- 5 槽位，kHeroCost=3，kRefreshCost=2
+- `buy()` 创建英雄并扣金；`refresh()` 随机重置所有槽位
+- `sellValue()` 静态方法：star1→1金，star2→2金，star3→4金
+
+**SynergySystem**
+- 4 种羁绊：近战（战士+坦克，2→+300HP，4→+700HP）、弓手（2→+50ATK，3→+120ATK）、法术（1→+70ATK，2→+160ATK）、圣愈（1→+400HP，2→+900HP）
+- `applyBuffs`：遍历棋盘玩家单位并调用 `setSynergyBuffs`
+- `clearBuffs`：结算后清零所有玩家单位羁绊加成
+- `getActiveSynergies`：返回 UI 展示用的激活羁绊列表
+
+**StarUpgrade**
+- `tryMergeAll`：循环扫描玩家单位，发现 3 张同名同星级时自动合并，删除 2 张并对保留单位调用 `upgradeToStar`
+- `removeUnit`：从棋盘/备战区/玩家列表/unitsMap 完整清除并释放内存
+
+**SaveManager**
+- 文本格式 key=value 存档
+- 保存：轮次、玩家HP/金/人口上限、每英雄的位置/星级/装备、待装备道具列表
+- 读档：还原所有状态并重建 Unit 指针
+- try-catch 保护文件 I/O
+
+### Qt GUI 集成
+
+**ShopPanel**
+- 5 个英雄购买槽按钮（显示英雄名+费用或"已售出"）
+- 刷新按钮；`updateDisplay()` 根据金币状态控制按钮启用
+- 信号：`heroPurchased(int)` / `refreshRequested()`
+
+**UnitGraphicsItem**
+- 新增 `starLevel_` 字段，在名称下方绘制黄色 ★ 符号
+
+**UnitInfoPanel**
+- 新增职业/星级/装备标签；出售按钮（sellRequested 信号）
+- `currentUnitId_` 跟踪当前选中单位
+
+**QtMainWindow**
+- 新增：商店面板、人口标签、羁绊标签、升级人口按钮、存档/读档按钮
+- `onHeroPurchased`：购买→放备战区→升星检测
+- `onShopRefresh`：扣金刷新商店
+- `onSellUnit`：出售英雄（从棋盘/unitsMap/playerUnits 清除）
+- `onLevelUp`：人口上限+1（费用=当前上限×2，最大8）
+- `onSaveGame` / `onLoadGame`：文件对话框 + SaveManager
+- `onStartBattle`：战斗前调用 `SynergySystem::applyBuffs`
+- `doSettlement`：战斗后 `clearBuffs` + 升星检测 + 随机道具掉落（轮次≥2）+ 刷新商店
+
+### 测试覆盖
+- `test_shop.cpp`：14 个测试（购买/刷新/出售/金币/拷贝）
+- `test_synergy.cpp`：11 个测试（各羁绊阈值/clearBuffs/getActiveSynergies）
+- `test_star_upgrade.cpp`：12 个测试（upgradeToStar 倍率/保留装备/3合1/装备增减）
+- `test_save.cpp`：4 个测试（存读档完整流程/无效路径/星级还原）
+- **总计：94/94 测试通过**（原 53 + 新增 41）
+
+## Phase 3 完成总结
+- 阶段三全部功能实现：商店购买/刷新、人口升级、羁绊系统、升星合并、装备增减、存读档
+- GUI 完整可玩：商店面板、羁绊展示、信息面板出售、星级显示、控制栏扩展
+- development-plan.md 阶段三成功标准全部标记为已完成
