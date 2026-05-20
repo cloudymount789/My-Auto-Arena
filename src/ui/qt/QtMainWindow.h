@@ -10,6 +10,7 @@
 #include <QMainWindow>
 #include <QPushButton>
 #include <QTimer>
+#include <QVBoxLayout>
 
 #include "core/BattleEngine.h"
 #include "core/Board.h"
@@ -55,6 +56,7 @@ private slots:
     void onLevelUp();
     void onSaveGame();
     void onLoadGame();
+    void onEquipItem();  // 装备待装备道具到当前选中英雄
 
 private:
     // ── 游戏核心状态 ─────────────────────────────────────────────
@@ -81,6 +83,13 @@ private:
     UnitInfoPanel* infoPanel_;
     ShopPanel* shopPanel_;
 
+    // 当前选中的单位 ID（-1 表示未选中）；装备道具时使用。
+    int currentSelectedUnitId_;
+
+    // 待装备道具面板（右侧栏）
+    QWidget*  itemsWidget_;   // 容纳道具按钮的容器
+    QVBoxLayout* itemsLayout_;  // itemsWidget_ 内部布局
+
     // 控制面板标签
     QLabel* phaseLabel_;
     QLabel* roundLabel_;
@@ -100,6 +109,7 @@ private:
     void updateStatusPanel();
     void updateSynergyDisplay();
     void updateShopDisplay();
+    void updateItemsDisplay();  // 刷新右侧待装备道具面板
     void doSettlement();  // 战斗结束后：结算金币/HP、清理单位、切换 FSM
 
     // 将新购英雄放置到备战区第一个空槽；返回是否成功。

@@ -7,6 +7,7 @@
 #include <QMessageBox>
 #include <QPainter>
 #include <QPushButton>
+#include <QScrollArea>
 #include <QStatusBar>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -27,12 +28,15 @@ QtMainWindow::QtMainWindow(QWidget* parent)
       spawner_(),
       shop_(),
       nextUnitId_(100),
+      currentSelectedUnitId_(-1),
       battleTimer_(nullptr),
       battleEngine_(nullptr),
       scene_(nullptr),
       view_(nullptr),
       infoPanel_(nullptr),
       shopPanel_(nullptr),
+      itemsWidget_(nullptr),
+      itemsLayout_(nullptr),
       phaseLabel_(nullptr),
       roundLabel_(nullptr),
       playerHpLabel_(nullptr),
@@ -97,9 +101,21 @@ QtMainWindow::QtMainWindow(QWidget* parent)
         " border-radius: 4px; padding: 4px;");
     synergyLabel_->setWordWrap(true);
 
+    // 待装备道具面板
+    QLabel* itemsTitle = new QLabel("⚗ 待装备道具", rightPanel);
+    itemsTitle->setStyleSheet("color: #FAB387; font-weight: bold; font-size: 12px; padding-top: 4px;");
+
+    itemsWidget_ = new QWidget(rightPanel);
+    itemsWidget_->setStyleSheet("background-color: #181825; border-radius: 4px;");
+    itemsLayout_ = new QVBoxLayout(itemsWidget_);
+    itemsLayout_->setContentsMargins(4, 4, 4, 4);
+    itemsLayout_->setSpacing(3);
+
     rightLayout->addWidget(infoPanel_);
     rightLayout->addWidget(shopPanel_);
     rightLayout->addWidget(synergyLabel_);
+    rightLayout->addWidget(itemsTitle);
+    rightLayout->addWidget(itemsWidget_);
     rightLayout->addStretch();
 
     gameLayout->addWidget(view_);
@@ -183,6 +199,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     updateStatusPanel();
     updateShopDisplay();
     updateSynergyDisplay();
+    updateItemsDisplay();
 
     setWindowTitle("Synera: Synergy Auto-Arena — Phase 3");
     resize(920, 800);
@@ -213,7 +230,11 @@ QtMainWindow::~QtMainWindow() {
     }
 }
 
-void QtMainWindow::onUnitSelected(int unitId) { infoPanel_->setUnit(scene_->unitById(unitId)); }
+void QtMainWindow::onUnitSelected(int unitId) {
+    currentSelectedUnitId_ = unitId;
+    infoPanel_->setUnit(scene_->unitById(unitId));
+    updateItemsDisplay();  // 选中单位后刷新道具按钮的可用状态
+}
 
 void QtMainWindow::onDragResult(core::DragResult result) {
     if (result == core::DragResult::kSuccess) {
@@ -283,7 +304,9 @@ void QtMainWindow::onBattleTick() {
     for (int i = 0; i < kTicksPerStep && !battleEngine_->isFinished(); ++i) {
         battleEngine_->tick();
     }
+    // syncAfterBattle 先清除上一 tick 特效并更新单位位置，之后再叠加本 tick 新特效。
     scene_->syncAfterBattle(unitsMap_);
+    scene_->spawnVfx(battleEngine_->lastTickEvents());
     statusBar()->showMessage(QString("⚔ 战斗中... Tick %1").arg(battleEngine_->tickCount()));
 
     if (battleEngine_->isFinished()) {
@@ -378,17 +401,17 @@ void QtMainWindow::doSettlement() {
     // 检查升星（复活后）。
     core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
 
-    // 刷新商店。
-    shop_ = core::Shop();
     updateShopDisplay();
     updateSynergyDisplay();
 
     fsm_.startSettlement(outcome);
     updateStatusPanel();
 
+    updateItemsDisplay();
+
     if (!pendingItems_.empty()) {
         statusBar()->showMessage(
-            QString("获得道具: %1 | 在信息面板选择英雄后装备")
+            QString("获得道具: %1 | 点击英雄再点道具按钮装备")
                 .arg(QString::fromStdString(core::getItemDef(pendingItems_.back()).name)));
     } else if (outcome.playerWon) {
         statusBar()->showMessage(
@@ -418,10 +441,13 @@ void QtMainWindow::onNextRound() {
         return;
     }
     fsm_.startNextRound();
+    // 每轮开始时刷新商店（新一轮新货架）。
+    shop_ = core::Shop();
     scene_->setDragEnabled(true);
     startBattleBtn_->setEnabled(true);
     nextRoundBtn_->setEnabled(false);
     updateStatusPanel();
+    updateShopDisplay();
     statusBar()->showMessage(QString("第 %1 轮准备中，请布置英雄阵型").arg(fsm_.currentRound()));
 }
 
@@ -582,6 +608,7 @@ void QtMainWindow::onLoadGame() {
         updateStatusPanel();
         updateShopDisplay();
         updateSynergyDisplay();
+        updateItemsDisplay();
         statusBar()->showMessage("读档成功", 2000);
     } else {
         QMessageBox::warning(this, "读档失败", "无法读取存档文件或格式错误！");
@@ -645,6 +672,87 @@ void QtMainWindow::updateShopDisplay() {
     if (shopPanel_ != nullptr) {
         shopPanel_->updateDisplay(shop_, player_.gold());
     }
+}
+
+void QtMainWindow::updateItemsDisplay() {
+    if (itemsLayout_ == nullptr) {
+        return;
+    }
+
+    // 清除旧按钮
+    while (itemsLayout_->count() > 0) {
+        QLayoutItem* item = itemsLayout_->takeAt(0);
+        if (item->widget() != nullptr) {
+            delete item->widget();
+        }
+        delete item;
+    }
+
+    if (pendingItems_.empty()) {
+        QLabel* empty = new QLabel("（暂无道具）", itemsWidget_);
+        empty->setStyleSheet("color: #6C7086; font-size: 11px;");
+        itemsLayout_->addWidget(empty);
+        return;
+    }
+
+    const bool canEquip = fsm_.canPlayerAct() && (currentSelectedUnitId_ >= 0) &&
+                          (unitsMap_.find(currentSelectedUnitId_) != unitsMap_.end()) &&
+                          (unitsMap_.at(currentSelectedUnitId_)->owner() == core::UnitOwner::player);
+
+    for (int i = 0; i < static_cast<int>(pendingItems_.size()); ++i) {
+        const core::ItemDef& def = core::getItemDef(pendingItems_.at(static_cast<std::size_t>(i)));
+        QPushButton* btn = new QPushButton(
+            QString("装备 %1").arg(QString::fromStdString(def.name)), itemsWidget_);
+        btn->setStyleSheet(
+            "QPushButton { background-color: #313244; color: #FAB387; font-size: 11px;"
+            " border-radius: 3px; padding: 3px 6px; }"
+            "QPushButton:disabled { background-color: #1E1E2E; color: #6C7086; }");
+        btn->setEnabled(canEquip);
+        btn->setToolTip(QString("+%1 ATK  +%2 HP").arg(def.bonusAtk).arg(def.bonusMaxHp));
+        btn->setProperty("itemIndex", i);
+        connect(btn, SIGNAL(clicked()), this, SLOT(onEquipItem()));
+        itemsLayout_->addWidget(btn);
+    }
+}
+
+void QtMainWindow::onEquipItem() {
+    QPushButton* btn = qobject_cast<QPushButton*>(sender());
+    if (btn == nullptr) {
+        return;
+    }
+    const int idx = btn->property("itemIndex").toInt();
+    if (idx < 0 || idx >= static_cast<int>(pendingItems_.size())) {
+        return;
+    }
+    if (currentSelectedUnitId_ < 0) {
+        statusBar()->showMessage("请先点击选中一个己方英雄再装备道具", 2000);
+        return;
+    }
+    std::map<int, core::Unit*>::iterator it = unitsMap_.find(currentSelectedUnitId_);
+    if (it == unitsMap_.end() || it->second == nullptr ||
+        it->second->owner() != core::UnitOwner::player) {
+        statusBar()->showMessage("请选中己方英雄后再装备", 2000);
+        return;
+    }
+
+    core::Unit* unit = it->second;
+    const core::ItemType item = pendingItems_.at(static_cast<std::size_t>(idx));
+    unit->equipItem(item);
+    pendingItems_.erase(pendingItems_.begin() + idx);
+
+    // 刷新显示
+    infoPanel_->setUnit(unit);
+    updateItemsDisplay();
+    updateStatusPanel();
+
+    const core::ItemDef& def = core::getItemDef(item);
+    statusBar()->showMessage(
+        QString("%1 装备了 %2 (+%3 ATK / +%4 HP)")
+            .arg(QString::fromStdString(unit->name()))
+            .arg(QString::fromStdString(def.name))
+            .arg(def.bonusAtk)
+            .arg(def.bonusMaxHp),
+        2500);
 }
 
 }  // namespace ui

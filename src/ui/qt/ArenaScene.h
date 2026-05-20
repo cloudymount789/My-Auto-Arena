@@ -4,8 +4,10 @@
 #include <map>
 #include <vector>
 
+#include <QGraphicsItem>
 #include <QGraphicsScene>
 
+#include "core/BattleEngine.h"
 #include "core/Board.h"
 #include "core/DragDropHandler.h"
 #include "core/Player.h"
@@ -33,6 +35,9 @@ public:
 
     // 战斗结算后：移除不再存在于 unitsMap 的图元，并刷新幸存单位的血蓝条。
     void syncAfterBattle(const std::map<int, core::Unit*>& unitsMap);
+
+    // 根据本 tick 的战斗事件，在场景中生成攻击/技能特效图元（持续到下次 syncAfterBattle）。
+    void spawnVfx(const std::vector<core::BattleEvent>& events);
 
     // 控制拖拽交互是否响应（准备阶段 true，战斗/结算阶段 false）。
     void setDragEnabled(bool enabled);
@@ -62,6 +67,13 @@ private:
     void snapBack(UnitGraphicsItem* item);
     void clearTileHighlight();
     UnitGraphicsItem* createUnitItem(core::Unit* unit);
+
+    // 清除上一 tick 留下的所有特效图元。
+    void clearVfxItems();
+    // 将棋盘格子坐标转换为场景像素中心点（与 ArenaScene 构造时的布局一致）。
+    QPointF tilePixelCenter(int row, int col) const;
+
+    std::vector<QGraphicsItem*> vfxItems_;  // 临时特效图元列表
 };
 
 }  // namespace ui

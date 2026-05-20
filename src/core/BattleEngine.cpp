@@ -12,12 +12,15 @@ BattleEngine::BattleEngine(Board& board, std::map<int, Unit*>& units)
 
 void BattleEngine::setDefeatHpPenalty(int hpPenalty) { defeatHpPenalty_ = hpPenalty; }
 
+const std::vector<BattleEvent>& BattleEngine::lastTickEvents() const { return tickEvents_; }
+
 void BattleEngine::tick() {
     if (finished_) {
         return;
     }
 
     ++tickCount_;
+    tickEvents_.clear();  // 每 tick 重置事件列表
 
     // Phase 1 — strikes and full-mana skills only. Resolving movement in the same pass as
     // attacks lets a lower map id move into range before the opponent acts, giving a free
@@ -35,11 +38,29 @@ void BattleEngine::tick() {
         const Position targetPos = board_.findUnitOnBoard(target->id());
 
         if (attacker->mana() >= attacker->maxMana()) {
+            // 记录技能施法事件（在技能执行前记录，保证坐标有效）。
+            BattleEvent ev;
+            ev.type     = BattleEvent::Type::kSkill;
+            ev.sourceId = attacker->id();
+            ev.targetId = target->id();
+            ev.isMelee  = false;
+            ev.srcRow   = attackerPos.row;  ev.srcCol = attackerPos.col;
+            ev.tgtRow   = targetPos.row;    ev.tgtCol = targetPos.col;
+            tickEvents_.push_back(ev);
             attacker->castFullManaSkill(board_, units_, target);
             continue;
         }
 
         if (inRange(*attacker, attackerPos, targetPos)) {
+            // 记录普通攻击事件。
+            BattleEvent ev;
+            ev.type     = BattleEvent::Type::kAttack;
+            ev.sourceId = attacker->id();
+            ev.targetId = target->id();
+            ev.isMelee  = (attacker->attackRange() <= 1);
+            ev.srcRow   = attackerPos.row;  ev.srcCol = attackerPos.col;
+            ev.tgtRow   = targetPos.row;    ev.tgtCol = targetPos.col;
+            tickEvents_.push_back(ev);
             target->takeDamage(attacker->attack());
             attacker->gainMana(kManaPerAttack);
         }
