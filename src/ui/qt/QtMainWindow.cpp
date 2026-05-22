@@ -23,7 +23,7 @@ namespace ui {
 QtMainWindow::QtMainWindow(QWidget* parent)
     : QMainWindow(parent),
       board_(8, 8, 8),
-      player_(1, 10, 100, 1, 3),
+      player_(1, 8, 100, 1, 3),
       fsm_(),
       spawner_(),
       shop_(),
@@ -49,26 +49,22 @@ QtMainWindow::QtMainWindow(QWidget* parent)
       saveBtn_(nullptr),
       loadBtn_(nullptr) {
 
-    // ── 初始化玩家英雄单位 ────────────────────────────────────────
+    // ── 初始化玩家英雄单位 ──────────────────────────────────────────
+    // 开局仅给2个英雄（战士+射手），迫使玩家用有限金币做第一次英雄选择。
     core::Unit* hero1 = new core::AshRaiderHero(1, core::UnitOwner::player);
     core::Unit* hero2 = new core::NightArcherHero(2, core::UnitOwner::player);
-    core::Unit* hero3 = new core::BonePrayerHero(3, core::UnitOwner::player);
 
     unitsMap_[hero1->id()] = hero1;
     unitsMap_[hero2->id()] = hero2;
-    unitsMap_[hero3->id()] = hero3;
 
     playerUnits_.push_back(hero1);
     playerUnits_.push_back(hero2);
-    playerUnits_.push_back(hero3);
 
     player_.addUnit(1);
     player_.addUnit(2);
-    player_.addUnit(3);
 
     board_.placeOnBench(1, 0);
     board_.placeOnBench(2, 1);
-    board_.placeOnBench(3, 2);
 
     // ── 构建 UI 布局 ──────────────────────────────────────────────
     QWidget* central = new QWidget(this);
@@ -472,21 +468,31 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
         return;
     }
 
+    // 在 tryMergeAll 之前保存名称，防止 hero 被合并后指针悬空导致崩溃。
+    const std::string heroName = hero->name();
     unitsMap_[hero->id()] = hero;
     playerUnits_.push_back(hero);
     player_.addUnit(hero->id());
     scene_->addUnitItem(hero);
     scene_->rebuild();
 
-    // 检查升星。
-    core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
+    // 检查升星（可能删除 hero 指针，此后不得再访问 hero）。
+    const bool merged = core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
     scene_->syncAfterBattle(unitsMap_);
     scene_->rebuild();
 
+    // 若发生升星，刷新当前选中单位的信息面板（星级可能变化）。
+    if (merged && currentSelectedUnitId_ >= 0) {
+        infoPanel_->setUnit(scene_->unitById(currentSelectedUnitId_));
+    }
+
     updateStatusPanel();
     updateShopDisplay();
+    updateItemsDisplay();
     statusBar()->showMessage(
-        QString("购买 %1 成功").arg(QString::fromStdString(hero->name())), 1500);
+        merged ? QString("购买 %1 成功，触发升星合并！").arg(QString::fromStdString(heroName))
+               : QString("购买 %1 成功").arg(QString::fromStdString(heroName)),
+        2000);
 }
 
 void QtMainWindow::onShopRefresh() {
@@ -549,6 +555,7 @@ void QtMainWindow::onSellUnit(int unitId) {
     scene_->syncAfterBattle(unitsMap_);
     scene_->rebuild();
     infoPanel_->setUnit(nullptr);
+    currentSelectedUnitId_ = -1;  // 已出售，清除选中状态
 
     delete unit;
 

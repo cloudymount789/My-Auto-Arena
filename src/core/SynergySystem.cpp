@@ -34,26 +34,40 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
     const int mages    = countClassOnBoard(UnitClass::kMage,    board, units);
     const int healers  = countClassOnBoard(UnitClass::kHealer,  board, units);
 
-    // 近战羁绊（战士+坦克总数）：2→所有玩家+300 HP；4→+700 HP。
+    // ──────────────────────────────────────────────────────────────────
+    // 羁绊设计说明（策略性层次）：
+    //  · 近战：战士+重甲战士总数  → 近战单位获得大量 ATK 加成，打造极强前排
+    //  · 弓手：射手数量          → 射手获得海量 ATK，全力堆射手可形成超高单体输出
+    //  · 法术：法师数量          → 法师 ATK 大幅提升，法师技能爆发质变
+    //  · 圣愈：治疗师数量        → 全体玩家英雄获得大量 HP，适合持久战/抗高伤阵容
+    // 策略目的：以上4种羁绊回报差异显著，迫使玩家专攻路线而非随意混搭。
+    // ──────────────────────────────────────────────────────────────────
+
+    // 近战羁绊（战士+坦克）：2→近战单位 +45 ATK；4→近战单位 +110 ATK + 500 HP。
     const int meleeCount = warriors + tanks;
-    int meleeHpBonus = 0;
-    if (meleeCount >= 4)      meleeHpBonus = 700;
-    else if (meleeCount >= 2) meleeHpBonus = 300;
+    int meleeAtkBonus = 0;
+    int meleeHpBonus  = 0;
+    if (meleeCount >= 4) {
+        meleeAtkBonus = 110;
+        meleeHpBonus  = 500;
+    } else if (meleeCount >= 2) {
+        meleeAtkBonus = 45;
+    }
 
-    // 弓手羁绊（射手数量）：2→弓手+50 ATK；3→弓手+120 ATK。
+    // 弓手羁绊（射手）：2→射手 +100 ATK；3→射手 +260 ATK。
     int archerAtkBonus = 0;
-    if (archers >= 3)      archerAtkBonus = 120;
-    else if (archers >= 2) archerAtkBonus = 50;
+    if (archers >= 3)      archerAtkBonus = 260;
+    else if (archers >= 2) archerAtkBonus = 100;
 
-    // 法术羁绊（法师数量）：1→法师+70 ATK；2→法师+160 ATK。
+    // 法术羁绊（法师）：1→法师 +120 ATK；2→法师 +300 ATK。
     int mageAtkBonus = 0;
-    if (mages >= 2)      mageAtkBonus = 160;
-    else if (mages >= 1) mageAtkBonus = 70;
+    if (mages >= 2)      mageAtkBonus = 300;
+    else if (mages >= 1) mageAtkBonus = 120;
 
-    // 圣愈羁绊（治疗师数量）：1→所有玩家+400 HP；2→+900 HP。
+    // 圣愈羁绊（治疗师）：1→全体玩家 +800 HP；2→全体玩家 +2000 HP。
     int healHpBonus = 0;
-    if (healers >= 2)      healHpBonus = 900;
-    else if (healers >= 1) healHpBonus = 400;
+    if (healers >= 2)      healHpBonus = 2000;
+    else if (healers >= 1) healHpBonus = 800;
 
     // 遍历棋盘上的玩家单位并设置对应羁绊 BUFF。
     for (int row = 0; row < board.rows(); ++row) {
@@ -72,9 +86,13 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
             }
 
             int bonusAtk = 0;
-            int bonusHp  = meleeHpBonus + healHpBonus;  // 全体加成叠加
+            // 圣愈为全体提供 HP；近战羁绊只给近战单位加 ATK 和 HP。
+            int bonusHp  = healHpBonus;
 
-            if (u->unitClass() == UnitClass::kArcher) {
+            if (u->unitClass() == UnitClass::kWarrior || u->unitClass() == UnitClass::kTank) {
+                bonusAtk = meleeAtkBonus;
+                bonusHp += meleeHpBonus;
+            } else if (u->unitClass() == UnitClass::kArcher) {
                 bonusAtk = archerAtkBonus;
             } else if (u->unitClass() == UnitClass::kMage) {
                 bonusAtk = mageAtkBonus;
@@ -111,10 +129,10 @@ std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
         s.count = melee;
         if (melee >= 4) {
             s.activeThreshold = 4;
-            s.buffDescription = "所有单位 +700 HP";
+            s.buffDescription = "近战 +110 ATK +500 HP";
         } else if (melee >= 2) {
             s.activeThreshold = 2;
-            s.buffDescription = "所有单位 +300 HP";
+            s.buffDescription = "近战 +45 ATK";
         } else {
             s.activeThreshold = 0;
             s.buffDescription = "2/4 激活";
@@ -129,10 +147,10 @@ std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
         s.count = archers;
         if (archers >= 3) {
             s.activeThreshold = 3;
-            s.buffDescription = "弓手 +120 ATK";
+            s.buffDescription = "弓手 +260 ATK";
         } else if (archers >= 2) {
             s.activeThreshold = 2;
-            s.buffDescription = "弓手 +50 ATK";
+            s.buffDescription = "弓手 +100 ATK";
         } else {
             s.activeThreshold = 0;
             s.buffDescription = "2/3 激活";
@@ -147,10 +165,10 @@ std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
         s.count = mages;
         if (mages >= 2) {
             s.activeThreshold = 2;
-            s.buffDescription = "法师 +160 ATK";
+            s.buffDescription = "法师 +300 ATK";
         } else if (mages >= 1) {
             s.activeThreshold = 1;
-            s.buffDescription = "法师 +70 ATK";
+            s.buffDescription = "法师 +120 ATK";
         } else {
             s.activeThreshold = 0;
             s.buffDescription = "1/2 激活";
@@ -165,10 +183,10 @@ std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
         s.count = healers;
         if (healers >= 2) {
             s.activeThreshold = 2;
-            s.buffDescription = "所有单位 +900 HP";
+            s.buffDescription = "全体 +2000 HP";
         } else if (healers >= 1) {
             s.activeThreshold = 1;
-            s.buffDescription = "所有单位 +400 HP";
+            s.buffDescription = "全体 +800 HP";
         } else {
             s.activeThreshold = 0;
             s.buffDescription = "1/2 激活";

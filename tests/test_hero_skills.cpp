@@ -24,7 +24,7 @@ TEST(HeroSkillTest, AshRaiderSkillDamagesPrimaryTarget) {
     hero.gainMana(hero.maxMana());
     const int before = victim.hp();
     hero.castFullManaSkill(board, reg, &victim);
-    EXPECT_EQ(victim.hp(), before - 300);
+    EXPECT_EQ(victim.hp(), before - 280);
     EXPECT_EQ(hero.mana(), 0);
 }
 
@@ -40,5 +40,5 @@ TEST(HeroSkillTest, HammerSkillHitsAdjacentEnemy) {
     hero.gainMana(hero.maxMana());
     const int before = victim.hp();
     hero.castFullManaSkill(board, reg, nullptr);
-    EXPECT_EQ(victim.hp(), before - 180);
+    EXPECT_EQ(victim.hp(), before - 220);
 }

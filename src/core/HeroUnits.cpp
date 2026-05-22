@@ -5,9 +5,10 @@
 namespace my_auto_arena {
 namespace core {
 
-// 战士：近战爆发，HP 厚实，技能：对主目标造成 300 点爆发伤害。
+// 战士：近战爆发，HP 厚实，技能：对主目标造成 280 点爆发伤害。
+// 设计定位：前排冲锋，削减血量可让前期压力更明显。
 AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
-    : Unit(id, "战士", owner, 2200, 60, 1, 80, UnitClass::kWarrior) {}
+    : Unit(id, "战士", owner, 1600, 62, 1, 75, UnitClass::kWarrior) {}
 
 AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : Unit(other) {}
 
@@ -15,14 +16,15 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(300);
+        primaryTarget->takeDamage(280);
     }
     spendAllMana();
 }
 
-// 射手：远程输出（射程 4），技能：对主目标造成 320 点穿透伤害。
+// 射手：远程输出（射程 4），技能：对主目标造成 360 点穿透伤害。
+// 设计定位：输出核心，弓手羁绊可极大提升其伤害，但HP偏低须保护。
 NightArcherHero::NightArcherHero(int id, UnitOwner owner)
-    : Unit(id, "射手", owner, 1800, 55, 4, 90, UnitClass::kArcher) {}
+    : Unit(id, "射手", owner, 1200, 60, 4, 75, UnitClass::kArcher) {}
 
 NightArcherHero::NightArcherHero(const NightArcherHero& other) : Unit(other) {}
 
@@ -30,14 +32,15 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(320);
+        primaryTarget->takeDamage(360);
     }
     spendAllMana();
 }
 
-// 重甲战士：坦克近战，AOE 技能：对周围 4 相邻格敌方各造成 180 点伤害。
+// 重甲战士：坦克近战，AOE 技能：对周围 4 相邻格敌方各造成 220 点伤害。
+// 设计定位：肉盾+AOE，近战羁绊为其解锁高ATK加成，但技能转换慢。
 CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
-    : Unit(id, "重甲战士", owner, 3200, 48, 1, 100, UnitClass::kTank) {}
+    : Unit(id, "重甲战士", owner, 2600, 48, 1, 90, UnitClass::kTank) {}
 
 CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : Unit(other) {}
 
@@ -64,15 +67,16 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         }
         Unit* other = it->second;
         if (other->isAlive() && other->owner() != owner()) {
-            other->takeDamage(180);
+            other->takeDamage(220);
         }
     }
     spendAllMana();
 }
 
-// 法师：中程法术输出，技能：对主目标造成 350 点法术伤害。
+// 法师：中程法术输出，技能：对主目标造成 420 点法术伤害。
+// 设计定位：爆发输出者，法术羁绊可让其伤害质变；HP最低须有坦克掩护。
 MistWitchHero::MistWitchHero(int id, UnitOwner owner)
-    : Unit(id, "法师", owner, 1500, 35, 3, 90, UnitClass::kMage) {}
+    : Unit(id, "法师", owner, 1000, 38, 3, 70, UnitClass::kMage) {}
 
 MistWitchHero::MistWitchHero(const MistWitchHero& other) : Unit(other) {}
 
@@ -80,14 +84,15 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(350);
+        primaryTarget->takeDamage(420);
     }
     spendAllMana();
 }
 
-// 治疗师：辅助单位，技能：为血量最低的友方治疗 500 点；无其他友方则自愈 400 点。
+// 治疗师：辅助单位，技能：为血量最低的友方治疗 600 点；无其他友方则自愈 500 点。
+// 设计定位：持久战核心，圣愈羁绊叠双治疗师可翻盘持久战；单独用时收益有限。
 BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
-    : Unit(id, "治疗师", owner, 1800, 30, 3, 100, UnitClass::kHealer) {}
+    : Unit(id, "治疗师", owner, 1400, 28, 3, 80, UnitClass::kHealer) {}
 
 BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : Unit(other) {}
 
@@ -107,9 +112,9 @@ void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units
         }
     }
     if (best != nullptr) {
-        best->heal(500);
+        best->heal(600);
     } else {
-        heal(400);
+        heal(500);
     }
     (void)board;
     spendAllMana();

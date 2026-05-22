@@ -29,14 +29,14 @@ EnemySpawner::EnemySpawner() {}
 
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 模板顺序：战士 / 射手 / 重甲战士 / 法师 / 治疗师 / 攻城弩
-    // HP 与玩家英雄同量级（2000-3200），确保战斗持续 15-30 Tick 以上。
+    // 敌方基础值略高于对应玩家英雄，配合升星倍率形成后期压力。
     static const std::vector<EnemyTemplate> kTemplates = {
-        {"战士",     2200, 62, 1, 80},
-        {"射手",     1800, 58, 4, 90},
-        {"重甲战士", 3200, 50, 1, 100},
-        {"法师",     1500, 38, 3, 90},
-        {"治疗师",   1800, 30, 3, 100},
-        {"攻城弩",   2500, 70, 5, 110},
+        {"战士",     1700, 68, 1, 75},   // 0: 前排, 追着玩家打
+        {"射手",     1300, 65, 4, 75},   // 1: 远程, 优先射低血量目标
+        {"重甲战士", 2800, 52, 1, 90},   // 2: 超强肉盾 AOE
+        {"法师",     1050, 45, 3, 70},   // 3: 爆发型, 技能快
+        {"治疗师",   1450, 30, 3, 80},   // 4: 后排辅助, 敌方持久战关键
+        {"攻城弩",   3200, 90, 5, 110},  // 5: BOSS级远程, 第6关核心威胁
     };
     return kTemplates;
 }
@@ -49,49 +49,65 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     cfg.roundIndex = round;
     cfg.onLosePlayerHpDamage = 0;
     cfg.winGoldReward = 0;
+    // 第1关：2个战士，玩家出发仅有2个英雄，数量平等但统计偏强。
     if (round == 1) {
-        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 3}});
-        cfg.onLosePlayerHpDamage = 2;
-        cfg.winGoldReward = 5;
+        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
+        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
+        cfg.onLosePlayerHpDamage = 5;
+        cfg.winGoldReward = 4;
         return cfg;
     }
+    // 第2关：3个混合，射手+战士+战士，玩家应购入第3英雄。
     if (round == 2) {
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
-        cfg.onLosePlayerHpDamage = 3;
+        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 6}});
+        cfg.onLosePlayerHpDamage = 8;
+        cfg.winGoldReward = 5;
+        return cfg;
+    }
+    // 第3关：4个，重甲战士+射手+战士+法师，首次出现法师。
+    if (round == 3) {
+        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 1}});
+        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 3}});
+        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
+        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 6}});
+        cfg.onLosePlayerHpDamage = 12;
         cfg.winGoldReward = 6;
         return cfg;
     }
-    if (round == 3) {
-        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 3}});
-        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
-        cfg.onLosePlayerHpDamage = 4;
-        cfg.winGoldReward = 7;
-        return cfg;
-    }
+    // 第4关：5个，★2重甲战士领队，射手×2+法师+治疗师，出现治疗师使敌方持久化。
     if (round == 4) {
-        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{2, 2}});
-        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{1, 4}});
-        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 5}});
-        cfg.onLosePlayerHpDamage = 5;
+        cfg.spawnList.push_back(SpawnEntry{2, 2, Position{1, 2}});
+        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
+        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 6}});
+        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 2}});
+        cfg.spawnList.push_back(SpawnEntry{4, 1, Position{0, 0}});
+        cfg.onLosePlayerHpDamage = 15;
         cfg.winGoldReward = 8;
         return cfg;
     }
+    // 第5关：5个，★2重甲战士+★2射手+法师×2+治疗师，远程输出最强一关。
     if (round == 5) {
-        cfg.spawnList.push_back(SpawnEntry{2, 2, Position{2, 3}});
-        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{1, 5}});
-        cfg.spawnList.push_back(SpawnEntry{4, 1, Position{0, 2}});
-        cfg.onLosePlayerHpDamage = 6;
+        cfg.spawnList.push_back(SpawnEntry{2, 2, Position{1, 1}});
+        cfg.spawnList.push_back(SpawnEntry{1, 2, Position{0, 3}});
+        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 5}});
+        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 6}});
+        cfg.spawnList.push_back(SpawnEntry{4, 1, Position{0, 1}});
+        cfg.onLosePlayerHpDamage = 18;
         cfg.winGoldReward = 9;
         return cfg;
     }
+    // 第6关：BOSS局，攻城弩★2领队，重甲战士+战士×2+法师+治疗师。
     if (round == 6) {
-        cfg.spawnList.push_back(SpawnEntry{5, 1, Position{0, 3}});
-        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{2, 4}});
+        cfg.spawnList.push_back(SpawnEntry{5, 2, Position{0, 3}});
+        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 1}});
-        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 6}});
-        cfg.onLosePlayerHpDamage = 7;
-        cfg.winGoldReward = 10;
+        cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
+        cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 5}});
+        cfg.spawnList.push_back(SpawnEntry{4, 1, Position{0, 1}});
+        cfg.onLosePlayerHpDamage = 25;
+        cfg.winGoldReward = 12;
         return cfg;
     }
     return cfg;

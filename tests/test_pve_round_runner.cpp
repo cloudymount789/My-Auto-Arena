@@ -19,22 +19,26 @@ using my_auto_arena::core::PvERoundRunner;
 using my_auto_arena::core::RoundOutcome;
 using my_auto_arena::core::UnitOwner;
 
-// AshRaiderHero: HP=2200, ATK=60, skill burst 300 → clearly beats a single 战士 enemy (HP=2200, no skill).
-TEST(PvERoundRunnerTest, Round1PlayerBeatsSingleEnemy) {
+// Round 1 now spawns 2 enemy warriors (HP=1700, ATK=68).
+// 2 AshRaiders (HP=1600, ATK=62, burst skill 280) should win together.
+TEST(PvERoundRunnerTest, Round1PlayerBeatsTwoEnemies) {
     Board board(8, 8, 8);
     Player player(1, 10, 100, 1, 8);
-    AshRaiderHero ally(50, UnitOwner::player);
+    AshRaiderHero ally1(50, UnitOwner::player);
+    AshRaiderHero ally2(51, UnitOwner::player);
     std::map<int, my_auto_arena::core::Unit*> units;
-    units[ally.id()] = &ally;
-    player.addUnit(ally.id());
-    ASSERT_TRUE(board.placeOnBoard(ally.id(), Position{7, 3}));
+    units[ally1.id()] = &ally1;
+    units[ally2.id()] = &ally2;
+    player.addUnit(ally1.id());
+    player.addUnit(ally2.id());
+    ASSERT_TRUE(board.placeOnBoard(ally1.id(), Position{7, 3}));
+    ASSERT_TRUE(board.placeOnBoard(ally2.id(), Position{7, 4}));
 
     EnemySpawner spawner;
     int nextId = 200;
     const RoundOutcome outcome = PvERoundRunner::runRoundBattle(board, player, units, 1, spawner, nextId);
 
     EXPECT_TRUE(outcome.playerWon);
-    EXPECT_EQ(player.gold(), 15);
-    EXPECT_EQ(units.size(), static_cast<std::size_t>(1));
-    EXPECT_EQ(units.count(ally.id()), static_cast<std::size_t>(1));
+    // Round 1 win reward = 4 gold; starting gold = 10 → total 14.
+    EXPECT_EQ(player.gold(), 14);
 }

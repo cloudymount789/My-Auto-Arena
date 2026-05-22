@@ -19,38 +19,40 @@ static void placeOnPlayerHalf(Board& board, std::map<int, Unit*>& units, Unit* u
 
 // ── 职业统计测试 ──────────────────────────────────────────────────────────────
 
-TEST(SynergyTest, WarriorArcher_NoSynergy_NoBuffs) {
+TEST(SynergyTest, SingleWarrior_NoSynergy_NoBuffs) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    AshRaiderHero warrior(1, UnitOwner::player);  // 战士
+    AshRaiderHero warrior(1, UnitOwner::player);  // 战士 base ATK=62
     placeOnPlayerHalf(board, units, &warrior, 6, 0);
 
     SynergySystem::applyBuffs(board, units);
-    // 单个战士不触发近战羁绊（需要 2 人）。
-    EXPECT_EQ(warrior.attack(), warrior.attack());  // 无 bonusAtk
-    // 验证 bonusAtk_=0 通过 setSynergyBuffs 后 attack() 不变
-    warrior.setSynergyBuffs(0, 0);
-    EXPECT_EQ(warrior.attack(), 60);  // AshRaider 基础攻击
+    // 单个战士不触发近战羁绊（需要 2 人），ATK 无加成。
+    EXPECT_EQ(warrior.attack(), 62);
 }
 
-TEST(SynergyTest, TwoMeleeUnits_HpBuff300) {
+// 近战羁绊2：近战单位 +45 ATK
+TEST(SynergyTest, TwoMeleeUnits_AtkBuff45) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    AshRaiderHero warrior(1, UnitOwner::player);
-    CurseHammerHero tank(2, UnitOwner::player);
+    AshRaiderHero warrior(1, UnitOwner::player);   // base ATK=62
+    CurseHammerHero tank(2, UnitOwner::player);    // base ATK=48
     placeOnPlayerHalf(board, units, &warrior, 6, 0);
     placeOnPlayerHalf(board, units, &tank, 6, 1);
 
     SynergySystem::applyBuffs(board, units);
 
-    // 近战 2 人羁绊：所有玩家单位 +300 HP。
-    EXPECT_EQ(warrior.maxHp(), 2200 + 300);
-    EXPECT_EQ(tank.maxHp(), 3200 + 300);
+    // 近战 2 人羁绊：近战单位 +45 ATK（不给 HP）。
+    EXPECT_EQ(warrior.attack(), 62 + 45);
+    EXPECT_EQ(tank.attack(), 48 + 45);
+    // HP 不变（2近战只给 ATK）。
+    EXPECT_EQ(warrior.maxHp(), 1600);
+    EXPECT_EQ(tank.maxHp(), 2600);
 }
 
-TEST(SynergyTest, FourMeleeUnits_HpBuff700) {
+// 近战羁绊4：近战单位 +110 ATK +500 HP
+TEST(SynergyTest, FourMeleeUnits_AtkBuff110_HpBuff500) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
@@ -65,27 +67,30 @@ TEST(SynergyTest, FourMeleeUnits_HpBuff700) {
 
     SynergySystem::applyBuffs(board, units);
 
-    EXPECT_EQ(w1.maxHp(), 2200 + 700);
-    EXPECT_EQ(t1.maxHp(), 3200 + 700);
+    EXPECT_EQ(w1.attack(), 62 + 110);
+    EXPECT_EQ(t1.attack(), 48 + 110);
+    EXPECT_EQ(w1.maxHp(), 1600 + 500);
+    EXPECT_EQ(t1.maxHp(), 2600 + 500);
 }
 
-TEST(SynergyTest, TwoArchers_AtkBuff50) {
+// 弓手羁绊2：射手 +100 ATK
+TEST(SynergyTest, TwoArchers_AtkBuff100) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    NightArcherHero a1(1, UnitOwner::player);
+    NightArcherHero a1(1, UnitOwner::player);  // base ATK=60
     NightArcherHero a2(2, UnitOwner::player);
     placeOnPlayerHalf(board, units, &a1, 6, 0);
     placeOnPlayerHalf(board, units, &a2, 6, 1);
 
     SynergySystem::applyBuffs(board, units);
 
-    // 弓手 2 人羁绊：弓手 +50 ATK。
-    EXPECT_EQ(a1.attack(), 55 + 50);
-    EXPECT_EQ(a2.attack(), 55 + 50);
+    EXPECT_EQ(a1.attack(), 60 + 100);
+    EXPECT_EQ(a2.attack(), 60 + 100);
 }
 
-TEST(SynergyTest, ThreeArchers_AtkBuff120) {
+// 弓手羁绊3：射手 +260 ATK
+TEST(SynergyTest, ThreeArchers_AtkBuff260) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
@@ -98,22 +103,24 @@ TEST(SynergyTest, ThreeArchers_AtkBuff120) {
 
     SynergySystem::applyBuffs(board, units);
 
-    EXPECT_EQ(a1.attack(), 55 + 120);
+    EXPECT_EQ(a1.attack(), 60 + 260);
 }
 
-TEST(SynergyTest, OneMage_AtkBuff70) {
+// 法术羁绊1：法师 +120 ATK
+TEST(SynergyTest, OneMage_AtkBuff120) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    MistWitchHero mage(1, UnitOwner::player);
+    MistWitchHero mage(1, UnitOwner::player);  // base ATK=38
     placeOnPlayerHalf(board, units, &mage, 6, 0);
 
     SynergySystem::applyBuffs(board, units);
 
-    EXPECT_EQ(mage.attack(), 35 + 70);
+    EXPECT_EQ(mage.attack(), 38 + 120);
 }
 
-TEST(SynergyTest, TwoMages_AtkBuff160) {
+// 法术羁绊2：法师 +300 ATK
+TEST(SynergyTest, TwoMages_AtkBuff300) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
@@ -124,24 +131,42 @@ TEST(SynergyTest, TwoMages_AtkBuff160) {
 
     SynergySystem::applyBuffs(board, units);
 
-    EXPECT_EQ(m1.attack(), 35 + 160);
-    EXPECT_EQ(m2.attack(), 35 + 160);
+    EXPECT_EQ(m1.attack(), 38 + 300);
+    EXPECT_EQ(m2.attack(), 38 + 300);
 }
 
-TEST(SynergyTest, OneHealer_AllHpBuff400) {
+// 圣愈羁绊1：全体 +800 HP
+TEST(SynergyTest, OneHealer_AllHpBuff800) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    BonePrayerHero healer(1, UnitOwner::player);
-    AshRaiderHero warrior(2, UnitOwner::player);
+    BonePrayerHero healer(1, UnitOwner::player);   // base HP=1400
+    AshRaiderHero warrior(2, UnitOwner::player);   // base HP=1600
     placeOnPlayerHalf(board, units, &healer, 6, 0);
     placeOnPlayerHalf(board, units, &warrior, 6, 1);
 
     SynergySystem::applyBuffs(board, units);
 
-    // 圣愈 1 人羁绊：所有玩家单位 +400 HP。
-    EXPECT_EQ(healer.maxHp(), 1800 + 400);
-    EXPECT_EQ(warrior.maxHp(), 2200 + 400);
+    EXPECT_EQ(healer.maxHp(), 1400 + 800);
+    EXPECT_EQ(warrior.maxHp(), 1600 + 800);
+}
+
+// 圣愈羁绊2：全体 +2000 HP
+TEST(SynergyTest, TwoHealers_AllHpBuff2000) {
+    Board board(8, 8, 8);
+    std::map<int, Unit*> units;
+
+    BonePrayerHero h1(1, UnitOwner::player);
+    BonePrayerHero h2(2, UnitOwner::player);
+    AshRaiderHero warrior(3, UnitOwner::player);
+    placeOnPlayerHalf(board, units, &h1, 6, 0);
+    placeOnPlayerHalf(board, units, &h2, 6, 1);
+    placeOnPlayerHalf(board, units, &warrior, 6, 2);
+
+    SynergySystem::applyBuffs(board, units);
+
+    EXPECT_EQ(warrior.maxHp(), 1600 + 2000);
+    EXPECT_EQ(h1.maxHp(), 1400 + 2000);
 }
 
 // ── clearBuffs 测试 ───────────────────────────────────────────────────────────
@@ -156,13 +181,15 @@ TEST(SynergyTest, ClearBuffsResetsToBase) {
     placeOnPlayerHalf(board, units, &tank, 6, 1);
 
     SynergySystem::applyBuffs(board, units);
-    EXPECT_GT(warrior.maxHp(), 2200);
+    EXPECT_GT(warrior.attack(), 62);  // 近战羁绊2后有 ATK 加成
 
     std::vector<Unit*> playerUnits = {&warrior, &tank};
     SynergySystem::clearBuffs(playerUnits);
 
-    EXPECT_EQ(warrior.maxHp(), 2200);
-    EXPECT_EQ(tank.maxHp(), 3200);
+    EXPECT_EQ(warrior.attack(), 62);
+    EXPECT_EQ(warrior.maxHp(), 1600);
+    EXPECT_EQ(tank.attack(), 48);
+    EXPECT_EQ(tank.maxHp(), 2600);
 }
 
 // ── getActiveSynergies 测试 ───────────────────────────────────────────────────
@@ -199,6 +226,6 @@ TEST(SynergyTest, EnemyUnitsNotBuffed) {
     units[1] = &enemyWarrior;
 
     SynergySystem::applyBuffs(board, units);
-    EXPECT_EQ(enemyWarrior.attack(), 60);   // 无加成
-    EXPECT_EQ(enemyWarrior.maxHp(), 2200);  // 无加成
+    EXPECT_EQ(enemyWarrior.attack(), 62);   // 无加成
+    EXPECT_EQ(enemyWarrior.maxHp(), 1600);  // 无加成
 }

@@ -207,12 +207,13 @@ void ArenaScene::syncAfterBattle(const std::map<int, core::Unit*>& unitsMap) {
             unitItems_.erase(it);
         }
     }
-    // 刷新幸存单位的血蓝条和位置。
+    // 刷新幸存单位的血蓝条、星级和位置。
     for (std::map<int, core::Unit*>::const_iterator it = unitsMap.begin(); it != unitsMap.end(); ++it) {
         const core::Unit* unit = it->second;
         std::map<int, UnitGraphicsItem*>::iterator itemIt = unitItems_.find(unit->id());
         if (itemIt != unitItems_.end()) {
             itemIt->second->setStats(unit->hp(), unit->maxHp(), unit->mana(), unit->maxMana());
+            itemIt->second->setStarLevel(unit->starLevel());  // 升星后及时刷新★显示
         }
     }
     syncUnitPositions();

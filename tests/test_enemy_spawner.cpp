@@ -14,17 +14,17 @@ using my_auto_arena::core::LevelConfig;
 using my_auto_arena::core::Unit;
 using my_auto_arena::core::UnitOwner;
 
-TEST(EnemySpawnerTest, Round1SpawnsOneEnemyOnBoard) {
+TEST(EnemySpawnerTest, Round1SpawnsTwoEnemiesOnBoard) {
     Board board(8, 8, 8);
     EnemySpawner spawner;
     int nextId = 100;
 
     std::vector<Unit*> spawned = spawner.spawnRound(1, board, nextId);
-    ASSERT_EQ(spawned.size(), 1);
+    ASSERT_EQ(spawned.size(), 2);
     EXPECT_EQ(spawned.at(0)->owner(), UnitOwner::enemy);
     EXPECT_EQ(spawned.at(0)->name(), "战士");
-    EXPECT_EQ(spawned.at(0)->hp(), 2200);
-    EXPECT_EQ(spawned.at(0)->attack(), 62);
+    EXPECT_EQ(spawned.at(0)->hp(), 1700);
+    EXPECT_EQ(spawned.at(0)->attack(), 68);
 
     const my_auto_arena::core::Position pos = board.findUnitOnBoard(spawned.at(0)->id());
     EXPECT_TRUE(board.inBounds(pos));
@@ -42,13 +42,13 @@ TEST(EnemySpawnerTest, InvalidRoundThrowsOutOfRange) {
     EXPECT_THROW(spawner.spawnRound(99, board, nextId), std::out_of_range);
 }
 
-TEST(EnemySpawnerTest, Round2SpawnsTwoEnemies) {
+TEST(EnemySpawnerTest, Round2SpawnsThreeEnemies) {
     Board board(8, 8, 8);
     EnemySpawner spawner;
     int nextId = 200;
 
     std::vector<Unit*> spawned = spawner.spawnRound(2, board, nextId);
-    ASSERT_EQ(spawned.size(), 2);
+    ASSERT_EQ(spawned.size(), 3);
 
     for (std::size_t i = 0; i < spawned.size(); ++i) {
         EXPECT_EQ(spawned.at(i)->owner(), UnitOwner::enemy);

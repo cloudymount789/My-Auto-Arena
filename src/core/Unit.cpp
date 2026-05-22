@@ -127,7 +127,18 @@ void Unit::equipItem(ItemType item) {
     }
     const ItemDef& def = getItemDef(item);
     attack_ += def.bonusAtk;
-    maxHp_ += def.bonusMaxHp;
+
+    if (def.bonusMaxHp > 0) {
+        // 装备增加最大血量时，按比例放大当前血量，避免穿甲后显示"受伤"状态。
+        const int oldMax = maxHp();  // 含羁绊加成
+        maxHp_ += def.bonusMaxHp;
+        const int newMax = maxHp();
+        // hp_ 按比例缩放，结果向上取整，保证至少为 1。
+        hp_ = static_cast<int>(static_cast<double>(hp_) / oldMax * newMax + 0.5);
+        hp_ = std::max(1, std::min(hp_, newMax));
+    } else {
+        maxHp_ += def.bonusMaxHp;
+    }
     equippedItem_ = item;
 }
 
