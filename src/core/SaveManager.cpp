@@ -168,6 +168,17 @@ bool SaveManager::load(const std::string& filepath,
         }
         playerUnits.clear();
 
+        // 清空棋盘格子与备战区：旧单位的占位 ID 仍残留在 Board 中；
+        // 若不清除，placeOnBoard/placeOnBench 会因格子已占用而静默失败。
+        for (int row = 0; row < board.rows(); ++row) {
+            for (int col = 0; col < board.cols(); ++col) {
+                board.clearOnBoard(Position{row, col});
+            }
+        }
+        for (int slot = 0; slot < board.benchSize(); ++slot) {
+            board.clearOnBench(slot);
+        }
+
         // 重建玩家单位。
         const int unitCount = std::stoi(kv.at("unit_count"));
         for (int i = 0; i < unitCount; ++i) {

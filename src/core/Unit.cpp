@@ -149,6 +149,11 @@ void Unit::unequipItem() {
     const ItemDef& def = getItemDef(equippedItem_);
     attack_ -= def.bonusAtk;
     maxHp_ -= def.bonusMaxHp;
+    // 卸除加血装备后需将当前血量钳制到新的最大血量，避免 hp_ > maxHp() 的非法状态。
+    if (def.bonusMaxHp > 0) {
+        hp_ = std::min(hp_, maxHp_);
+        hp_ = std::max(1, hp_);
+    }
     equippedItem_ = ItemType::kNone;
 }
 

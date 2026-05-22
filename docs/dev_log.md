@@ -420,3 +420,36 @@
 - `HeroUnits.cpp` 各英雄 `castFullManaSkill()` 统一改用 `scaledSkillDamage()`。
 
 **测试：95/95 全部通过**
+
+---
+
+## 2026-05-22（代码审查与边界条件修复）
+
+本次对全部源码进行了一次系统性代码审查，共发现并修复 5 处 Bug。
+
+### Bug 1（CRITICAL）：无尽关卡无法进行 — `QtMainWindow::onNextRound()`
+- **位置**：`src/ui/qt/QtMainWindow.cpp`，`onNextRound()`
+- **原因**：UI 层仍保留旧的 `if (fsm_.currentRound() >= 6)` 判断，弹出"已通过全部 6 关"并返回，完全阻断了第 7 关及之后的流程。`EnemySpawner` 虽已实现无尽膨胀逻辑，但 UI 层的硬编码上限使其从未被触及。
+- **修复**：删除该判断块，`onNextRound()` 现在直接调用 `fsm_.startNextRound()` 无上限推进。
+
+### Bug 2（HIGH）：卸除加血装备后 HP 溢出 — `Unit::unequipItem()`
+- **位置**：`src/core/Unit.cpp`
+- **原因**：`equipItem()` 在增加 `maxHp_` 时会按比例扩大 `hp_`（例如装锁甲后 HP 1600→2400）。但 `unequipItem()` 仅做了 `maxHp_ -= def.bonusMaxHp`，未将 `hp_` 钳制到新的上限，导致 `hp_ > maxHp()`，单位显示血量非法。
+- **修复**：在减少 `maxHp_` 后追加 `hp_ = std::max(1, std::min(hp_, maxHp_))`。
+
+### Bug 3（HIGH）：卸装备未检查战斗阶段 — `QtMainWindow::onUnequipItem()`
+- **位置**：`src/ui/qt/QtMainWindow.cpp`
+- **原因**：`onUnequipItem()` 缺少 `fsm_.canPlayerAct()` 前置检查，理论上可在战斗阶段触发卸装备，导致战斗中单位数值变化。
+- **修复**：在函数入口添加阶段守卫，战斗期间调用时展示提示信息并提前返回。
+
+### Bug 4（HIGH）：读档后棋盘位置静默失败 — `SaveManager::load()`
+- **位置**：`src/core/SaveManager.cpp`
+- **原因**：`load()` 清除旧玩家单位后未清空 `Board` 的格子占位数据。`Tile::place()` 在格子已占时返回 `false`，`Board::placeOnBench()` 同理，导致读档重建的英雄无法放置，读档后英雄消失。
+- **修复**：在清除旧单位之后、放置新单位之前，用双层循环调用 `board.clearOnBoard()` / `board.clearOnBench()` 清空所有格子。
+
+### Bug 5（MEDIUM）：商店英雄每次启动顺序相同 — `Shop::randomizeSlots()`
+- **位置**：`src/qt_main.cpp`
+- **原因**：`Shop::randomizeSlots()` 使用 `std::rand()` 但从未初始化随机种子，每次启动游戏商店英雄刷新序列完全一致。
+- **修复**：在 `qt_main.cpp` 的 `main()` 入口调用 `std::srand(static_cast<unsigned int>(std::time(nullptr)))`。
+
+**测试：95/95 全部通过**

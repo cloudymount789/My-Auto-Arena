@@ -429,11 +429,6 @@ void QtMainWindow::onNextRound() {
     if (fsm_.currentPhase() != core::GamePhase::kSettlement) {
         return;
     }
-    if (fsm_.currentRound() >= 6) {
-        QMessageBox::information(this, "恭喜通关", "已通过全部 6 关！");
-        nextRoundBtn_->setEnabled(false);
-        return;
-    }
     fsm_.startNextRound();
     // 每轮开始时刷新商店（新一轮新货架）。
     shop_ = core::Shop();
@@ -761,6 +756,10 @@ void QtMainWindow::onEquipItem() {
 }
 
 void QtMainWindow::onUnequipItem(int unitId) {
+    if (!fsm_.canPlayerAct()) {
+        statusBar()->showMessage("战斗阶段无法卸除装备", 1500);
+        return;
+    }
     std::map<int, core::Unit*>::iterator it = unitsMap_.find(unitId);
     if (it == unitsMap_.end() || it->second == nullptr ||
         it->second->owner() != core::UnitOwner::player) {
