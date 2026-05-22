@@ -1,10 +1,14 @@
 #include "core/SynergySystem.h"
 
+#include <string>
+
 namespace my_auto_arena {
 namespace core {
 
 int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
                                       const std::map<int, Unit*>& units) {
+    // 按星级加权统计：★1=1点，★2=2点，★3=3点。
+    // 例：3个★1=3点(T1激活); 1个★3+1个★1=4点(仍T1); 3个★2=6点(T2激活)。
     int count = 0;
     for (int row = 0; row < board.rows(); ++row) {
         for (int col = 0; col < board.cols(); ++col) {
@@ -17,9 +21,12 @@ int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
                 continue;
             }
             const Unit* u = it->second;
-            // 仅统计玩家阵营且职业匹配的单位。
             if (u->owner() == UnitOwner::player && u->unitClass() == cls) {
-                ++count;
+                // 升星规则：3×★1→★2，3×★2→★3
+                // 所以 ★2 等效于 3 个★1（3点），★3 等效于 9 个★1（9点）
+                const int starLevel = u->starLevel();
+                const int pts = (starLevel == 3) ? 9 : (starLevel == 2) ? 3 : 1;
+                count += pts;
             }
         }
     }
@@ -34,40 +41,38 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
     const int mages    = countClassOnBoard(UnitClass::kMage,    board, units);
     const int healers  = countClassOnBoard(UnitClass::kHealer,  board, units);
 
-    // ──────────────────────────────────────────────────────────────────
-    // 羁绊设计说明（策略性层次）：
-    //  · 近战：战士+重甲战士总数  → 近战单位获得大量 ATK 加成，打造极强前排
-    //  · 弓手：射手数量          → 射手获得海量 ATK，全力堆射手可形成超高单体输出
-    //  · 法术：法师数量          → 法师 ATK 大幅提升，法师技能爆发质变
-    //  · 圣愈：治疗师数量        → 全体玩家英雄获得大量 HP，适合持久战/抗高伤阵容
-    // 策略目的：以上4种羁绊回报差异显著，迫使玩家专攻路线而非随意混搭。
-    // ──────────────────────────────────────────────────────────────────
+    // ─────────────────────────────────────────────────────────────────
+    // 星级加权羁绊规则（点数：★1=1pt，★2=3pt，★3=9pt）：
+    //   T1 激活阈值 = 3  → 3个★1，或 1个★2，均等效
+    //   T2 激活阈值 = 9  → 3个★2，或 1个★3，均等效
+    // 更高阈值对应更大奖励，鼓励专攻路线并深度投资升星。
+    // ─────────────────────────────────────────────────────────────────
 
-    // 近战羁绊（战士+坦克）：2→近战单位 +45 ATK；4→近战单位 +110 ATK + 500 HP。
+    // 近战羁绊（战士+重甲战士）：T1(3)→ +70 ATK；T2(9)→ +180 ATK +1000 HP。
     const int meleeCount = warriors + tanks;
     int meleeAtkBonus = 0;
     int meleeHpBonus  = 0;
-    if (meleeCount >= 4) {
-        meleeAtkBonus = 110;
-        meleeHpBonus  = 500;
-    } else if (meleeCount >= 2) {
-        meleeAtkBonus = 45;
+    if (meleeCount >= 9) {
+        meleeAtkBonus = 180;
+        meleeHpBonus  = 1000;
+    } else if (meleeCount >= 3) {
+        meleeAtkBonus = 70;
     }
 
-    // 弓手羁绊（射手）：2→射手 +100 ATK；3→射手 +260 ATK。
+    // 弓手羁绊（射手）：T1(3)→ +160 ATK；T2(9)→ +400 ATK。
     int archerAtkBonus = 0;
-    if (archers >= 3)      archerAtkBonus = 260;
-    else if (archers >= 2) archerAtkBonus = 100;
+    if (archers >= 9)      archerAtkBonus = 400;
+    else if (archers >= 3) archerAtkBonus = 160;
 
-    // 法术羁绊（法师）：1→法师 +120 ATK；2→法师 +300 ATK。
+    // 法术羁绊（法师）：T1(3)→ +180 ATK；T2(9)→ +450 ATK。
     int mageAtkBonus = 0;
-    if (mages >= 2)      mageAtkBonus = 300;
-    else if (mages >= 1) mageAtkBonus = 120;
+    if (mages >= 9)      mageAtkBonus = 450;
+    else if (mages >= 3) mageAtkBonus = 180;
 
-    // 圣愈羁绊（治疗师）：1→全体玩家 +800 HP；2→全体玩家 +2000 HP。
+    // 圣愈羁绊（治疗师）：T1(3)→全体 +1000 HP；T2(9)→全体 +2500 HP。
     int healHpBonus = 0;
-    if (healers >= 2)      healHpBonus = 2000;
-    else if (healers >= 1) healHpBonus = 800;
+    if (healers >= 9)      healHpBonus = 2500;
+    else if (healers >= 3) healHpBonus = 1000;
 
     // 遍历棋盘上的玩家单位并设置对应羁绊 BUFF。
     for (int row = 0; row < board.rows(); ++row) {
@@ -122,74 +127,74 @@ std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
     const int healers  = countClassOnBoard(UnitClass::kHealer,  board, units);
     const int melee    = warriors + tanks;
 
-    // 近战羁绊
+    // 近战羁绊（★1=1pt，★2=3pt，★3=9pt；T1=3, T2=9）
     {
         ActiveSynergy s;
         s.name = "近战";
         s.count = melee;
-        if (melee >= 4) {
-            s.activeThreshold = 4;
-            s.buffDescription = "近战 +110 ATK +500 HP";
-        } else if (melee >= 2) {
-            s.activeThreshold = 2;
-            s.buffDescription = "近战 +45 ATK";
+        if (melee >= 9) {
+            s.activeThreshold = 9;
+            s.buffDescription = "近战 +180 ATK +1000 HP";
+        } else if (melee >= 3) {
+            s.activeThreshold = 3;
+            s.buffDescription = "近战 +70 ATK";
         } else {
             s.activeThreshold = 0;
-            s.buffDescription = "2/4 激活";
+            s.buffDescription = "3/9 激活 (已有" + std::to_string(melee) + "点)";
         }
         result.push_back(s);
     }
 
-    // 弓手羁绊
+    // 弓手羁绊（T1=3, T2=9）
     {
         ActiveSynergy s;
         s.name = "弓手";
         s.count = archers;
-        if (archers >= 3) {
+        if (archers >= 9) {
+            s.activeThreshold = 9;
+            s.buffDescription = "弓手 +400 ATK";
+        } else if (archers >= 3) {
             s.activeThreshold = 3;
-            s.buffDescription = "弓手 +260 ATK";
-        } else if (archers >= 2) {
-            s.activeThreshold = 2;
-            s.buffDescription = "弓手 +100 ATK";
+            s.buffDescription = "弓手 +160 ATK";
         } else {
             s.activeThreshold = 0;
-            s.buffDescription = "2/3 激活";
+            s.buffDescription = "3/9 激活 (已有" + std::to_string(archers) + "点)";
         }
         result.push_back(s);
     }
 
-    // 法术羁绊
+    // 法术羁绊（T1=3, T2=9）
     {
         ActiveSynergy s;
         s.name = "法术";
         s.count = mages;
-        if (mages >= 2) {
-            s.activeThreshold = 2;
-            s.buffDescription = "法师 +300 ATK";
-        } else if (mages >= 1) {
-            s.activeThreshold = 1;
-            s.buffDescription = "法师 +120 ATK";
+        if (mages >= 9) {
+            s.activeThreshold = 9;
+            s.buffDescription = "法师 +450 ATK";
+        } else if (mages >= 3) {
+            s.activeThreshold = 3;
+            s.buffDescription = "法师 +180 ATK";
         } else {
             s.activeThreshold = 0;
-            s.buffDescription = "1/2 激活";
+            s.buffDescription = "3/9 激活 (已有" + std::to_string(mages) + "点)";
         }
         result.push_back(s);
     }
 
-    // 圣愈羁绊
+    // 圣愈羁绊（T1=3, T2=9）
     {
         ActiveSynergy s;
         s.name = "圣愈";
         s.count = healers;
-        if (healers >= 2) {
-            s.activeThreshold = 2;
-            s.buffDescription = "全体 +2000 HP";
-        } else if (healers >= 1) {
-            s.activeThreshold = 1;
-            s.buffDescription = "全体 +800 HP";
+        if (healers >= 9) {
+            s.activeThreshold = 9;
+            s.buffDescription = "全体 +2500 HP";
+        } else if (healers >= 3) {
+            s.activeThreshold = 3;
+            s.buffDescription = "全体 +1000 HP";
         } else {
             s.activeThreshold = 0;
-            s.buffDescription = "1/2 激活";
+            s.buffDescription = "3/9 激活 (已有" + std::to_string(healers) + "点)";
         }
         result.push_back(s);
     }

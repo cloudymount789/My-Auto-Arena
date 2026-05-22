@@ -379,3 +379,44 @@
 | 圣愈2 | 全体+900HP | 全体+2000HP | 双治疗无敌 |
 
 **测试：95/95 全部通过**
+
+## 2026-05-22 – 续前次任务（星级加权羁绊 + 无尽关卡 + VFX 动画 + 装备穿脱）
+
+### 星级加权羁绊系统（SynergySystem）
+- `countClassOnBoard()` 改为累计星级点数（★1=1点，★2=2点，★3=3点）。
+- 激活阈值改为 **T1=3点 / T2=6点**，取代旧的"单位数量 2/4"逻辑。
+- 新羁绊数值：
+  | 羁绊 | T1 (3pts) | T2 (6pts) |
+  |-----|----------|----------|
+  | 近战 | 近战单位 +70 ATK | 近战 +180 ATK +1000 HP |
+  | 弓手 | 弓手 +160 ATK | 弓手 +400 ATK |
+  | 法术 | 法师 +180 ATK | 法师 +450 ATK |
+  | 圣愈 | 全体 +1000 HP | 全体 +2500 HP |
+- `getActiveSynergies()` 未激活时显示"3/6 激活 (已有N点)"，便于玩家理解进度。
+
+### 无尽关卡（EnemySpawner）
+- 移除 `configForRound()` 的 `[1..6]` 范围校验，改为 clamp round < 1 为 1。
+- 第7关起，阵型每3关循环（轻量/标准/精英），并按 `pow(1.12, round-6)` 对敌方 HP/ATK 指数膨胀。
+- `LevelConfig` 新增 `statScaleFactor` 字段；`spawnRound()` 在构造敌方单位前先应用该系数。
+- 失败惩罚上限 50 HP，金币奖励上限 30，随关数线性增加。
+
+### VFX 动画系统（ArenaScene）
+- 新增 `VfxProjectile` 结构体与 30ms `vfxTimer_` 实现弹体动画。
+- 射手普通攻击：金黄色拉长椭圆，180ms 飞行，旋转指向目标。
+- 法师普通攻击：深蓝紫色圆形，240ms 飞行。
+- 技能弹体：按职业区分颜色（战士=血红，射手=亮金，坦克=橙，法师=深紫，治疗=翠绿）。
+- 命中时生成白色闪光，坦克/治疗师技能改为静态范围光晕。
+
+### 装备穿脱（UnitInfoPanel + QtMainWindow）
+- `UnitInfoPanel` 新增「卸下装备」按钮，仅在玩家单位且已装备时启用。
+- `QtMainWindow::onUnequipItem()` 调用 `unit->unequipItem()` 并将物品返还 `pendingItems_`。
+
+### 备战阶段羁绊展示
+- `onDragResult()` 每次拖拽结束后调用 `updateSynergyDisplay()`，使羁绊面板实时更新。
+
+### 升星数值（Unit）
+- ★2 倍率从 1.8x 改为 3.0x，★3 从 3.0x 改为 7.0x（相对★1基础值）。
+- 新增 `scaledSkillDamage(int base)` 方法，使技能伤害同步受升星倍率影响。
+- `HeroUnits.cpp` 各英雄 `castFullManaSkill()` 统一改用 `scaledSkillDamage()`。
+
+**测试：95/95 全部通过**

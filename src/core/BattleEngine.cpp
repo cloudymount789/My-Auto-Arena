@@ -40,12 +40,14 @@ void BattleEngine::tick() {
         if (attacker->mana() >= attacker->maxMana()) {
             // 记录技能施法事件（在技能执行前记录，保证坐标有效）。
             BattleEvent ev;
-            ev.type     = BattleEvent::Type::kSkill;
-            ev.sourceId = attacker->id();
-            ev.targetId = target->id();
-            ev.isMelee  = false;
-            ev.srcRow   = attackerPos.row;  ev.srcCol = attackerPos.col;
-            ev.tgtRow   = targetPos.row;    ev.tgtCol = targetPos.col;
+            ev.type        = BattleEvent::Type::kSkill;
+            ev.sourceId    = attacker->id();
+            ev.targetId    = target->id();
+            ev.isMelee     = false;
+            ev.sourceClass = attacker->unitClass();
+            ev.sourceOwner = attacker->owner();
+            ev.srcRow      = attackerPos.row;  ev.srcCol = attackerPos.col;
+            ev.tgtRow      = targetPos.row;    ev.tgtCol = targetPos.col;
             tickEvents_.push_back(ev);
             attacker->castFullManaSkill(board_, units_, target);
             continue;
@@ -54,12 +56,14 @@ void BattleEngine::tick() {
         if (inRange(*attacker, attackerPos, targetPos)) {
             // 记录普通攻击事件。
             BattleEvent ev;
-            ev.type     = BattleEvent::Type::kAttack;
-            ev.sourceId = attacker->id();
-            ev.targetId = target->id();
-            ev.isMelee  = (attacker->attackRange() <= 1);
-            ev.srcRow   = attackerPos.row;  ev.srcCol = attackerPos.col;
-            ev.tgtRow   = targetPos.row;    ev.tgtCol = targetPos.col;
+            ev.type        = BattleEvent::Type::kAttack;
+            ev.sourceId    = attacker->id();
+            ev.targetId    = target->id();
+            ev.isMelee     = (attacker->attackRange() <= 1);
+            ev.sourceClass = attacker->unitClass();
+            ev.sourceOwner = attacker->owner();
+            ev.srcRow      = attackerPos.row;  ev.srcCol = attackerPos.col;
+            ev.tgtRow      = targetPos.row;    ev.tgtCol = targetPos.col;
             tickEvents_.push_back(ev);
             target->takeDamage(attacker->attack());
             attacker->gainMana(kManaPerAttack);
@@ -196,10 +200,15 @@ void BattleEngine::clearDeadUnits() {
 }
 
 bool BattleEngine::allDead(UnitOwner owner) const {
+    // 只统计实际部署在棋盘格子上的单位（bench 上的单位不参与战斗，不计入死亡判断）。
     for (std::map<int, Unit*>::const_iterator it = units_.begin(); it != units_.end(); ++it) {
         Unit* unit = it->second;
-        if (unit != nullptr && unit->owner() == owner && unit->isAlive()) {
-            return false;
+        if (unit == nullptr || unit->owner() != owner || !unit->isAlive()) {
+            continue;
+        }
+        const Position pos = board_.findUnitOnBoard(unit->id());
+        if (board_.inBounds(pos)) {
+            return false;  // 棋盘上仍有存活单位，未全灭
         }
     }
     return true;

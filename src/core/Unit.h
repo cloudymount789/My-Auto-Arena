@@ -60,8 +60,11 @@ public:
     void setSynergyBuffs(int bonusAtk, int bonusMaxHp);
     void clearSynergyBuffs();
 
-    // 升星：用原始星1基础值乘以倍率（star2=×1.8，star3=×3.0），保留装备加成。
+    // 升星：用原始星1基础值乘以倍率（star2=×3.0，star3=×7.0），保留装备加成。
     void upgradeToStar(int newStarLevel);
+
+    // 按星级缩放技能基础伤害/治疗量：★1=×1.0，★2=×3.0，★3=×7.0（与 ATK 倍率一致）。
+    int scaledSkillDamage(int baseDamage) const;
 
     // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget);

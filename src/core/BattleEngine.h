@@ -15,11 +15,13 @@ namespace core {
 struct BattleEvent {
     enum class Type { kAttack, kSkill };
     Type type;
-    int sourceId;   // 攻击者/施法者单位 ID
-    int targetId;   // 目标单位 ID（-1 表示无具体目标）
-    bool isMelee;   // 攻击事件：true=近战, false=远程
-    int srcRow, srcCol;  // 事件发生时施法者的棋盘坐标（-1 表示不在棋盘）
-    int tgtRow, tgtCol;  // 事件发生时目标的棋盘坐标
+    int sourceId;            // 攻击者/施法者单位 ID
+    int targetId;            // 目标单位 ID（-1 表示无具体目标）
+    bool isMelee;            // 攻击事件：true=近战, false=远程
+    UnitClass sourceClass;   // 施法者/攻击者职业（驱动特效颜色区分）
+    UnitOwner sourceOwner;   // 攻击者阵营（玩家/敌方，用于区分特效风格）
+    int srcRow, srcCol;      // 事件发生时施法者的棋盘坐标（-1 表示不在棋盘）
+    int tgtRow, tgtCol;      // 事件发生时目标的棋盘坐标
 };
 
 class BattleEngine {

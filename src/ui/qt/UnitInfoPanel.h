@@ -20,11 +20,12 @@ public slots:
     void setUnit(const core::Unit* unit);
 
 signals:
-    // 玩家点击出售按钮时发出，携带当前单位 ID。
-    void sellRequested(int unitId);
+    void sellRequested(int unitId);    // 点击「出售」
+    void unequipRequested(int unitId); // 点击「卸装备」
 
 private slots:
     void onSellClicked();
+    void onUnequipClicked();
 
 private:
     QLabel* name_;
@@ -36,6 +37,7 @@ private:
     QProgressBar* hp_;
     QProgressBar* mana_;
     QPushButton* sellBtn_;
+    QPushButton* unequipBtn_;
 
     int currentUnitId_;  // 当前展示的单位 ID，-1 表示无单位
 

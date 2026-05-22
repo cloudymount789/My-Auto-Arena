@@ -29,6 +29,7 @@ struct LevelConfig {
     std::vector<SpawnEntry> spawnList;
     int onLosePlayerHpDamage;
     int winGoldReward;
+    double statScaleFactor = 1.0;  // 无尽关卡额外乘以敌方 HP/ATK 的系数
 };
 
 class EnemySpawner {

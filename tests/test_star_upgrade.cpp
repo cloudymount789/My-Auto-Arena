@@ -17,27 +17,29 @@ using namespace my_auto_arena::core;
 TEST(StarUpgradeTest, UpgradeToStar2MultipliesStats) {
     AshRaiderHero hero(1, UnitOwner::player);
     // star1 基础（重平衡后）：ATK=62, MaxHP=1600
+    // ★2 倍率 = 3.0x
     hero.upgradeToStar(2);
     EXPECT_EQ(hero.starLevel(), 2);
-    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 1.8));
-    EXPECT_EQ(hero.maxHp(), static_cast<int>(1600 * 1.8));
+    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 3.0));
+    EXPECT_EQ(hero.maxHp(), static_cast<int>(1600 * 3.0));
 }
 
 TEST(StarUpgradeTest, UpgradeToStar3MultipliesStats) {
     AshRaiderHero hero(1, UnitOwner::player);
     hero.upgradeToStar(2);
     hero.upgradeToStar(3);
+    // ★3 倍率 = 7.0x（相对 star1 基础）
     EXPECT_EQ(hero.starLevel(), 3);
-    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 3.0));
-    EXPECT_EQ(hero.maxHp(), static_cast<int>(1600 * 3.0));
+    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 7.0));
+    EXPECT_EQ(hero.maxHp(), static_cast<int>(1600 * 7.0));
 }
 
 TEST(StarUpgradeTest, UpgradePreservesItemBonus) {
     AshRaiderHero hero(1, UnitOwner::player);
     hero.equipItem(ItemType::kSword);  // +80 ATK
     hero.upgradeToStar(2);
-    // 升星后：基础 ATK = 62*1.8 = 111，加装备 +80 = 191
-    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 1.8) + 80);
+    // 升星后：基础 ATK = 62*3.0 = 186，加装备 +80 = 266
+    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 3.0) + 80);
 }
 
 TEST(StarUpgradeTest, UpgradeResetsHpToFull) {

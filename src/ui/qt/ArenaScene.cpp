@@ -1,5 +1,7 @@
 #include "ui/qt/ArenaScene.h"
 
+#include <cmath>
+
 #include <QBrush>
 #include <QColor>
 #include <QGraphicsEllipseItem>
@@ -7,6 +9,7 @@
 #include <QGraphicsRectItem>
 #include <QPen>
 #include <QPropertyAnimation>
+#include <QTransform>
 
 #include "ui/qt/TileGraphicsItem.h"
 #include "ui/qt/UnitGraphicsItem.h"
@@ -23,7 +26,8 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, std::map<int, c
       dragHandler_(board, player),
       mapper_(board.rows(), board.cols(), board.benchSize(), 64.0, 20.0, 20.0, 24.0),
       highlightedTile_(nullptr),
-      dragEnabled_(true) {
+      dragEnabled_(true),
+      vfxTimer_(nullptr) {
     setSceneRect(0.0, 0.0, 600.0, 700.0);
 
     for (int row = 0; row < board.rows(); ++row) {
@@ -51,6 +55,11 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, std::map<int, c
     }
 
     syncUnitPositions();
+
+    vfxTimer_ = new QTimer(this);
+    vfxTimer_->setSingleShot(false);
+    vfxTimer_->setInterval(30);
+    connect(vfxTimer_, SIGNAL(timeout()), this, SLOT(onVfxTick()));
 }
 
 UnitGraphicsItem* ArenaScene::createUnitItem(core::Unit* unit) {
@@ -82,11 +91,28 @@ void ArenaScene::addUnitItem(core::Unit* unit) {
 }
 
 void ArenaScene::clearVfxItems() {
+    if (vfxTimer_ != nullptr && vfxTimer_->isActive()) {
+        vfxTimer_->stop();
+    }
     for (std::size_t i = 0; i < vfxItems_.size(); ++i) {
         removeItem(vfxItems_.at(i));
         delete vfxItems_.at(i);
     }
     vfxItems_.clear();
+    for (std::size_t i = 0; i < activeProjectiles_.size(); ++i) {
+        if (activeProjectiles_.at(i).item != nullptr) {
+            removeItem(activeProjectiles_.at(i).item);
+            delete activeProjectiles_.at(i).item;
+        }
+    }
+    activeProjectiles_.clear();
+    for (std::size_t i = 0; i < activePulses_.size(); ++i) {
+        if (activePulses_.at(i).item != nullptr) {
+            removeItem(activePulses_.at(i).item);
+            delete activePulses_.at(i).item;
+        }
+    }
+    activePulses_.clear();
 }
 
 QPointF ArenaScene::tilePixelCenter(int row, int col) const {
@@ -96,97 +122,295 @@ QPointF ArenaScene::tilePixelCenter(int row, int col) const {
     return QPointF(cx, cy);
 }
 
+// ── VFX 颜色规则 ──────────────────────────────────────────────────────────────
+// 玩家普通攻击：暖色系 (弓手=金黄, 法师=蓝紫)
+// 敌方普通攻击：冷色系 (弓手=橙红, 法师=毒绿)
+// 玩家技能：鲜艳职业色
+// 敌方技能：暗化/反色版本，外加深红轮廓感
+
+static QColor attackColor(core::UnitClass cls, core::UnitOwner owner) {
+    if (owner == core::UnitOwner::player) {
+        if (cls == core::UnitClass::kArcher)  return QColor(255, 220, 40, 230);   // 玩家射手：金黄
+        if (cls == core::UnitClass::kMage)    return QColor(100, 80, 255, 230);   // 玩家法师：蓝紫
+        return QColor(210, 210, 210, 200);
+    }
+    // 敌方
+    if (cls == core::UnitClass::kArcher)  return QColor(255, 80, 20, 230);    // 敌方射手：橙红
+    if (cls == core::UnitClass::kMage)    return QColor(30, 200, 80, 230);    // 敌方法师：毒绿
+    return QColor(200, 60, 60, 200);    // 其他敌方：暗红
+}
+
+static QColor skillColor(core::UnitClass cls, core::UnitOwner owner) {
+    if (owner == core::UnitOwner::player) {
+        switch (cls) {
+            case core::UnitClass::kWarrior: return QColor(255, 80, 20, 240);   // 血红
+            case core::UnitClass::kArcher:  return QColor(255, 240, 0, 250);   // 亮金
+            case core::UnitClass::kTank:    return QColor(255, 140, 0, 240);   // 橙
+            case core::UnitClass::kMage:    return QColor(160, 0, 255, 245);   // 深紫
+            case core::UnitClass::kHealer:  return QColor(0, 220, 120, 240);   // 翠绿
+            default:                        return QColor(180, 180, 255, 220);
+        }
+    }
+    // 敌方技能：暗化版
+    switch (cls) {
+        case core::UnitClass::kWarrior: return QColor(180, 0, 0, 240);      // 暗红
+        case core::UnitClass::kArcher:  return QColor(200, 100, 0, 240);    // 暗橙
+        case core::UnitClass::kTank:    return QColor(160, 60, 0, 240);     // 深棕橙
+        case core::UnitClass::kMage:    return QColor(0, 160, 80, 245);     // 暗绿
+        case core::UnitClass::kHealer:  return QColor(150, 0, 150, 240);    // 紫红
+        default:                        return QColor(100, 100, 180, 220);
+    }
+}
+
+// 生成一个飞行物并添加到场景。
+// widthScale>1 表示沿飞行方向拉伸（箭矢效果），angle=飞行方向角度。
+static QGraphicsEllipseItem* makeProjectileItem(QColor color, double r, double widthScale, double angle,
+                                                 QGraphicsScene* scene) {
+    // 宽度按比例拉伸，原点在中心。
+    QGraphicsEllipseItem* item = new QGraphicsEllipseItem(-r * widthScale, -r, r * 2 * widthScale, r * 2);
+    item->setBrush(QBrush(color));
+    item->setPen(QPen(color.lighter(130), 1));
+    item->setTransformOriginPoint(0.0, 0.0);
+    item->setRotation(angle);
+    item->setZValue(25.0);
+    scene->addItem(item);
+    return item;
+}
+
+// 辅助：添加扩散脉冲环到 activePulses_（供技能/命中时调用）
+void ArenaScene::spawnPulse(QPointF center, QColor color, double startR, double endR, int duration) {
+    QGraphicsEllipseItem* item = new QGraphicsEllipseItem(center.x() - startR, center.y() - startR,
+                                                          startR * 2, startR * 2);
+    item->setBrush(Qt::NoBrush);
+    item->setPen(QPen(color, 2.5));
+    item->setZValue(23.0);
+    addItem(item);
+
+    VfxPulse pulse;
+    pulse.item        = item;
+    pulse.center      = center;
+    pulse.elapsed     = 0;
+    pulse.duration    = duration;
+    pulse.startRadius = startR;
+    pulse.endRadius   = endR;
+    pulse.color       = color;
+    pulse.startAlpha  = color.alpha();
+    activePulses_.push_back(pulse);
+}
+
 void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
     for (std::size_t i = 0; i < events.size(); ++i) {
         const core::BattleEvent& ev = events.at(i);
 
-        // 坐标校验：源或目标不在棋盘范围内则跳过。
         const bool srcValid = (ev.srcRow >= 0 && ev.srcCol >= 0);
         const bool tgtValid = (ev.tgtRow >= 0 && ev.tgtCol >= 0);
         if (!srcValid || !tgtValid) {
             continue;
         }
 
-        const QPointF srcCenter = tilePixelCenter(ev.srcRow, ev.srcCol);
-        const QPointF tgtCenter = tilePixelCenter(ev.tgtRow, ev.tgtCol);
+        const QPointF src = tilePixelCenter(ev.srcRow, ev.srcCol);
+        const QPointF tgt = tilePixelCenter(ev.tgtRow, ev.tgtCol);
+        const double dx  = tgt.x() - src.x();
+        const double dy  = tgt.y() - src.y();
+        const double ang = std::atan2(dy, dx) * 180.0 / 3.14159265;
+
+        const bool isEnemy = (ev.sourceOwner == core::UnitOwner::enemy);
 
         if (ev.type == core::BattleEvent::Type::kAttack) {
             if (ev.isMelee) {
-                // 近战攻击：目标格上橙色冲击环。
-                const double r = 22.0;
+                // ── 近战攻击 ──
+                // 玩家：橙色冲击环 + 红点；敌方：暗红冲击环 + 深红点
+                const QColor ringCol = isEnemy ? QColor(180, 20, 20, 200) : QColor(255, 120, 30, 200);
+                const QColor dotCol  = isEnemy ? QColor(140, 0, 0, 200)   : QColor(255, 50, 50, 190);
+                const double r = 24.0;
                 QGraphicsEllipseItem* ring =
-                    new QGraphicsEllipseItem(tgtCenter.x() - r, tgtCenter.y() - r, r * 2, r * 2);
+                    new QGraphicsEllipseItem(tgt.x() - r, tgt.y() - r, r * 2, r * 2);
                 ring->setBrush(Qt::NoBrush);
-                ring->setPen(QPen(QColor(255, 130, 40, 210), 3));
+                ring->setPen(QPen(ringCol, 3));
                 ring->setZValue(20.0);
                 addItem(ring);
                 vfxItems_.push_back(ring);
 
-                // 近战命中：目标格小红点闪光
-                const double dotR = 8.0;
+                const double dotR = 9.0;
                 QGraphicsEllipseItem* dot =
-                    new QGraphicsEllipseItem(tgtCenter.x() - dotR, tgtCenter.y() - dotR, dotR * 2, dotR * 2);
-                dot->setBrush(QBrush(QColor(255, 60, 60, 180)));
+                    new QGraphicsEllipseItem(tgt.x() - dotR, tgt.y() - dotR, dotR * 2, dotR * 2);
+                dot->setBrush(QBrush(dotCol));
                 dot->setPen(Qt::NoPen);
                 dot->setZValue(21.0);
                 addItem(dot);
                 vfxItems_.push_back(dot);
             } else {
-                // 远程攻击：在攻击者→目标的 1/3 和 2/3 处各画一个黄色子弹点，模拟弹道。
-                const QPointF p1 = srcCenter * (2.0 / 3.0) + tgtCenter * (1.0 / 3.0);
-                const QPointF p2 = srcCenter * (1.0 / 3.0) + tgtCenter * (2.0 / 3.0);
-                const double bR = 6.0;
+                // ── 远程攻击：按职业和阵营选色，射手拉伸，法师圆形 ──
+                const bool isArcher = (ev.sourceClass == core::UnitClass::kArcher);
+                const QColor col    = attackColor(ev.sourceClass, ev.sourceOwner);
+                const double r      = isArcher ? 5.0 : 9.0;
+                const double wScale = isArcher ? 2.8 : 1.0;
+                const int    dur    = isArcher ? 160 : 220;
 
-                for (int pi = 0; pi < 2; ++pi) {
-                    const QPointF& pt = (pi == 0) ? p1 : p2;
-                    QGraphicsEllipseItem* bullet =
-                        new QGraphicsEllipseItem(pt.x() - bR, pt.y() - bR, bR * 2, bR * 2);
-                    bullet->setBrush(QBrush(QColor(255, 235, 60, 220)));
-                    bullet->setPen(QPen(QColor(255, 200, 0, 180), 1));
-                    bullet->setZValue(21.0);
-                    addItem(bullet);
-                    vfxItems_.push_back(bullet);
-                }
+                QGraphicsEllipseItem* bullet = makeProjectileItem(col, r, wScale, ang, this);
+                bullet->setPos(src);
 
-                // 目标命中闪光
-                const double hitR = 10.0;
-                QGraphicsEllipseItem* hit =
-                    new QGraphicsEllipseItem(tgtCenter.x() - hitR, tgtCenter.y() - hitR, hitR * 2, hitR * 2);
-                hit->setBrush(QBrush(QColor(255, 235, 60, 140)));
-                hit->setPen(Qt::NoPen);
-                hit->setZValue(20.0);
-                addItem(hit);
-                vfxItems_.push_back(hit);
+                VfxProjectile proj;
+                proj.item            = bullet;
+                proj.startPos        = src;
+                proj.endPos          = tgt;
+                proj.elapsed         = 0;
+                proj.duration        = dur;
+                proj.radius          = r;
+                proj.widthScale      = wScale;
+                proj.angle           = ang;
+                proj.spawnImpactPulse = false;
+                proj.impactColor     = col;
+                activeProjectiles_.push_back(proj);
             }
+
         } else if (ev.type == core::BattleEvent::Type::kSkill) {
-            // 技能施法：施法者格子紫色光晕 + 目标格射线。
-            const double glowR = 30.0;
-            QGraphicsEllipseItem* glow =
-                new QGraphicsEllipseItem(srcCenter.x() - glowR, srcCenter.y() - glowR, glowR * 2, glowR * 2);
-            glow->setBrush(QBrush(QColor(180, 80, 255, 90)));
-            glow->setPen(QPen(QColor(200, 120, 255, 200), 2));
-            glow->setZValue(20.0);
-            addItem(glow);
-            vfxItems_.push_back(glow);
+            // ── 技能：施法光环（动态脉冲）+ 弹体（带命中脉冲）──
+            const QColor skillCol = skillColor(ev.sourceClass, ev.sourceOwner);
 
-            // 施法连线（法术弹道）
-            QGraphicsLineItem* line = new QGraphicsLineItem(
-                srcCenter.x(), srcCenter.y(), tgtCenter.x(), tgtCenter.y());
-            line->setPen(QPen(QColor(200, 120, 255, 160), 2, Qt::DashLine));
-            line->setZValue(20.0);
-            addItem(line);
-            vfxItems_.push_back(line);
+            // 施法起点：发出 2 层扩散脉冲环
+            spawnPulse(src, skillCol, 8.0,  44.0, 300);
+            spawnPulse(src, skillCol, 14.0, 52.0, 420);
 
-            // 目标处技能爆炸圆圈
-            const double blastR = 28.0;
-            QGraphicsEllipseItem* blast =
-                new QGraphicsEllipseItem(tgtCenter.x() - blastR, tgtCenter.y() - blastR, blastR * 2, blastR * 2);
-            blast->setBrush(QBrush(QColor(200, 80, 255, 80)));
-            blast->setPen(QPen(QColor(220, 140, 255, 200), 2));
-            blast->setZValue(20.0);
-            addItem(blast);
-            vfxItems_.push_back(blast);
+            // 坦克技能：AOE 冲击圈 + 脉冲环（无弹体）
+            if (ev.sourceClass == core::UnitClass::kTank) {
+                const QColor aoeCol = isEnemy ? QColor(140, 60, 0, 180) : QColor(255, 140, 0, 180);
+                spawnPulse(src, aoeCol, 20.0, 80.0, 500);
+                spawnPulse(src, aoeCol, 30.0, 90.0, 600);
+                continue;
+            }
+
+            // 治疗师技能：绿色治疗波（在目标处生成两圈扩散环）
+            if (ev.sourceClass == core::UnitClass::kHealer) {
+                const QColor healCol = isEnemy ? QColor(160, 0, 160, 220) : QColor(0, 220, 120, 220);
+                spawnPulse(tgt, healCol, 6.0,  36.0, 350);
+                spawnPulse(tgt, healCol, 12.0, 44.0, 500);
+                continue;
+            }
+
+            // 其他职业：射出技能弹体（命中后生成爆炸脉冲）
+            const double skillR = (ev.sourceClass == core::UnitClass::kMage) ? 13.0 : 8.0;
+            const double sklWS  = (ev.sourceClass == core::UnitClass::kArcher) ? 2.5 : 1.0;
+            const int    sklDur = (ev.sourceClass == core::UnitClass::kMage) ? 280 : 210;
+
+            QGraphicsEllipseItem* sBullet = makeProjectileItem(skillCol, skillR, sklWS, ang, this);
+            sBullet->setPos(src);
+
+            VfxProjectile sproj;
+            sproj.item            = sBullet;
+            sproj.startPos        = src;
+            sproj.endPos          = tgt;
+            sproj.elapsed         = 0;
+            sproj.duration        = sklDur;
+            sproj.radius          = skillR;
+            sproj.widthScale      = sklWS;
+            sproj.angle           = ang;
+            sproj.spawnImpactPulse = true;   // 命中时产生额外爆炸环
+            sproj.impactColor     = skillCol;
+            activeProjectiles_.push_back(sproj);
         }
+    }
+
+    const bool needTimer = !activeProjectiles_.empty() || !activePulses_.empty();
+    if (needTimer && vfxTimer_ != nullptr && !vfxTimer_->isActive()) {
+        vfxTimer_->start();
+    }
+}
+
+void ArenaScene::onVfxTick() {
+    const int delta = (vfxTimer_ != nullptr) ? vfxTimer_->interval() : 30;
+    bool anyAlive = false;
+
+    // ── 推进飞行物 ──────────────────────────────────────────────────────────
+    for (std::size_t i = 0; i < activeProjectiles_.size(); ++i) {
+        VfxProjectile& proj = activeProjectiles_.at(i);
+        if (proj.item == nullptr) {
+            continue;
+        }
+        proj.elapsed += delta;
+        const double t = (proj.elapsed >= proj.duration)
+                             ? 1.0
+                             : static_cast<double>(proj.elapsed) / proj.duration;
+
+        const QPointF cur = proj.startPos * (1.0 - t) + proj.endPos * t;
+        proj.item->setPos(cur);
+
+        if (proj.elapsed >= proj.duration) {
+            removeItem(proj.item);
+            delete proj.item;
+            proj.item = nullptr;
+
+            // 命中闪光（白色实心圆）
+            const double hitR = proj.radius * 1.8;
+            QGraphicsEllipseItem* hit =
+                new QGraphicsEllipseItem(proj.endPos.x() - hitR, proj.endPos.y() - hitR, hitR * 2, hitR * 2);
+            hit->setBrush(QBrush(QColor(255, 255, 200, 180)));
+            hit->setPen(Qt::NoPen);
+            hit->setZValue(22.0);
+            addItem(hit);
+            vfxItems_.push_back(hit);
+
+            // 技能命中：额外产生两圈爆炸扩散环
+            if (proj.spawnImpactPulse) {
+                spawnPulse(proj.endPos, proj.impactColor, proj.radius, proj.radius * 4.5, 400);
+                spawnPulse(proj.endPos, proj.impactColor.lighter(140), proj.radius * 0.5, proj.radius * 3.0, 280);
+                anyAlive = true;  // 脉冲需要继续驱动定时器
+            }
+        } else {
+            anyAlive = true;
+        }
+    }
+
+    // 清理已完成的飞行物
+    std::vector<VfxProjectile> aliveProj;
+    for (std::size_t i = 0; i < activeProjectiles_.size(); ++i) {
+        if (activeProjectiles_.at(i).item != nullptr) {
+            aliveProj.push_back(activeProjectiles_.at(i));
+        }
+    }
+    activeProjectiles_ = aliveProj;
+
+    // ── 推进脉冲环 ──────────────────────────────────────────────────────────
+    for (std::size_t i = 0; i < activePulses_.size(); ++i) {
+        VfxPulse& pulse = activePulses_.at(i);
+        if (pulse.item == nullptr) {
+            continue;
+        }
+        pulse.elapsed += delta;
+        const double t = (pulse.elapsed >= pulse.duration)
+                             ? 1.0
+                             : static_cast<double>(pulse.elapsed) / pulse.duration;
+
+        // 半径插值
+        const double r = pulse.startRadius + (pulse.endRadius - pulse.startRadius) * t;
+        pulse.item->setRect(pulse.center.x() - r, pulse.center.y() - r, r * 2, r * 2);
+
+        // 透明度从 startAlpha 线性衰减到 0
+        const int alpha = static_cast<int>(pulse.startAlpha * (1.0 - t));
+        QColor col = pulse.color;
+        col.setAlpha(alpha);
+        pulse.item->setPen(QPen(col, 2.5));
+
+        if (pulse.elapsed >= pulse.duration) {
+            removeItem(pulse.item);
+            delete pulse.item;
+            pulse.item = nullptr;
+        } else {
+            anyAlive = true;
+        }
+    }
+
+    // 清理已完成的脉冲
+    std::vector<VfxPulse> alivePulse;
+    for (std::size_t i = 0; i < activePulses_.size(); ++i) {
+        if (activePulses_.at(i).item != nullptr) {
+            alivePulse.push_back(activePulses_.at(i));
+        }
+    }
+    activePulses_ = alivePulse;
+
+    if (!anyAlive && vfxTimer_ != nullptr) {
+        vfxTimer_->stop();
     }
 }
 

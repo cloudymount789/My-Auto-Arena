@@ -16,7 +16,7 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(280);
+        primaryTarget->takeDamage(scaledSkillDamage(280));
     }
     spendAllMana();
 }
@@ -32,7 +32,7 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(360);
+        primaryTarget->takeDamage(scaledSkillDamage(360));
     }
     spendAllMana();
 }
@@ -67,7 +67,7 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         }
         Unit* other = it->second;
         if (other->isAlive() && other->owner() != owner()) {
-            other->takeDamage(220);
+            other->takeDamage(scaledSkillDamage(220));
         }
     }
     spendAllMana();
@@ -84,7 +84,7 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(420);
+        primaryTarget->takeDamage(scaledSkillDamage(420));
     }
     spendAllMana();
 }
@@ -112,9 +112,9 @@ void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units
         }
     }
     if (best != nullptr) {
-        best->heal(600);
+        best->heal(scaledSkillDamage(600));
     } else {
-        heal(500);
+        heal(scaledSkillDamage(500));
     }
     (void)board;
     spendAllMana();

@@ -1,6 +1,7 @@
 #include "core/EnemySpawner.h"
 
-#include <stdexcept>
+#include <algorithm>
+#include <cmath>
 
 namespace my_auto_arena {
 namespace core {
@@ -42,13 +43,19 @@ const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
 }
 
 LevelConfig EnemySpawner::configForRound(int round) const {
-    if (round < 1 || round > 6) {
-        throw std::out_of_range("EnemySpawner: round index out of range [1..6].");
+    if (round < 1) {
+        round = 1;
     }
     LevelConfig cfg;
     cfg.roundIndex = round;
     cfg.onLosePlayerHpDamage = 0;
     cfg.winGoldReward = 0;
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 前6关：精心设计的新手曲线，让玩家先赢后感受压力
+    // 第7关起：使用无尽模板 + scaleStatForRound 指数膨胀
+    // ─────────────────────────────────────────────────────────────────────
+
     // 第1关：2个战士，玩家出发仅有2个英雄，数量平等但统计偏强。
     if (round == 1) {
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
@@ -110,6 +117,49 @@ LevelConfig EnemySpawner::configForRound(int round) const {
         cfg.winGoldReward = 12;
         return cfg;
     }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // 第7关起：无尽模式，使用6关的模板结构，对 HP/ATK 按指数公式膨胀。
+    // 每3关循环一组阵型（轻量/标准/精英），并且关数越高组内全部升星。
+    // ─────────────────────────────────────────────────────────────────────
+    // 动态 star level: round 7-9 -> star1, round 10-12 -> star2, round 13+ -> star2
+    const int baseStar = (round >= 13) ? 2 : (round >= 10 ? 2 : 1);
+    const int eliteStar = (round >= 10) ? 2 : 1;
+
+    // 每关 12% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板 hp/atk。
+    const double factor = std::pow(1.12, round - 6);
+    cfg.statScaleFactor = factor;
+
+    // 阵型轮换（每3关一个周期）
+    const int cycle = ((round - 7) % 3);
+    if (cycle == 0) {
+        // 轻量阵：战士×2+射手×2+法师
+        cfg.spawnList.push_back(SpawnEntry{0, baseStar, Position{1, 2}});
+        cfg.spawnList.push_back(SpawnEntry{0, baseStar, Position{1, 5}});
+        cfg.spawnList.push_back(SpawnEntry{1, baseStar, Position{0, 3}});
+        cfg.spawnList.push_back(SpawnEntry{1, baseStar, Position{0, 5}});
+        cfg.spawnList.push_back(SpawnEntry{3, baseStar, Position{0, 1}});
+    } else if (cycle == 1) {
+        // 标准阵：重甲战士+战士+射手+法师×2+治疗师
+        cfg.spawnList.push_back(SpawnEntry{2, eliteStar, Position{1, 2}});
+        cfg.spawnList.push_back(SpawnEntry{0, baseStar,  Position{1, 4}});
+        cfg.spawnList.push_back(SpawnEntry{1, eliteStar, Position{0, 4}});
+        cfg.spawnList.push_back(SpawnEntry{3, baseStar,  Position{0, 2}});
+        cfg.spawnList.push_back(SpawnEntry{3, baseStar,  Position{0, 6}});
+        cfg.spawnList.push_back(SpawnEntry{4, baseStar,  Position{0, 0}});
+    } else {
+        // 精英阵：攻城弩+重甲战士+战士×2+法师+治疗师
+        cfg.spawnList.push_back(SpawnEntry{5, eliteStar, Position{0, 3}});
+        cfg.spawnList.push_back(SpawnEntry{2, eliteStar, Position{1, 2}});
+        cfg.spawnList.push_back(SpawnEntry{0, baseStar,  Position{1, 1}});
+        cfg.spawnList.push_back(SpawnEntry{0, baseStar,  Position{1, 5}});
+        cfg.spawnList.push_back(SpawnEntry{3, baseStar,  Position{0, 5}});
+        cfg.spawnList.push_back(SpawnEntry{4, baseStar,  Position{0, 1}});
+    }
+
+    // 失败惩罚和金币奖励随关数增长（上限分别为50和30）
+    cfg.onLosePlayerHpDamage = std::min(50, 25 + (round - 6) * 3);
+    cfg.winGoldReward        = std::min(30, 12 + (round - 6) * 2);
     return cfg;
 }
 
@@ -123,7 +173,13 @@ std::vector<Unit*> EnemySpawner::spawnRound(int round, Board& board, int& nextUn
             !board.inBounds(entry.deployPos) || !board.isEnemyHalf(entry.deployPos)) {
             continue;
         }
-        Unit* unit = new SpawnedEnemyUnit(nextUnitId, tpl.at(entry.templateIndex), entry.starLevel);
+        // 无尽关卡：对模板 hp/atk 应用 statScaleFactor，再交给 SpawnedEnemyUnit 做升星乘算。
+        EnemyTemplate scaledTpl = tpl.at(entry.templateIndex);
+        if (cfg.statScaleFactor > 1.0 + 1e-6) {
+            scaledTpl.hp  = static_cast<int>(scaledTpl.hp  * cfg.statScaleFactor + 0.5);
+            scaledTpl.atk = static_cast<int>(scaledTpl.atk * cfg.statScaleFactor + 0.5);
+        }
+        Unit* unit = new SpawnedEnemyUnit(nextUnitId, scaledTpl, entry.starLevel);
         if (!board.placeOnBoard(unit->id(), entry.deployPos)) {
             delete unit;
             continue;

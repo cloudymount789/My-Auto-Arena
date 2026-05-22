@@ -56,7 +56,8 @@ private slots:
     void onLevelUp();
     void onSaveGame();
     void onLoadGame();
-    void onEquipItem();  // 装备待装备道具到当前选中英雄
+    void onEquipItem();    // 装备待装备道具到当前选中英雄
+    void onUnequipItem(int unitId);  // 卸下英雄当前装备并归还 pendingItems_
 
 private:
     // ── 游戏核心状态 ─────────────────────────────────────────────

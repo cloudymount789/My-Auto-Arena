@@ -167,12 +167,19 @@ void Unit::upgradeToStar(int newStarLevel) {
     int itemAtk = (equippedItem_ != ItemType::kNone) ? getItemDef(equippedItem_).bonusAtk : 0;
     int itemHp  = (equippedItem_ != ItemType::kNone) ? getItemDef(equippedItem_).bonusMaxHp : 0;
 
-    double factor = (newStarLevel == 2) ? 1.8 : 3.0;
+    // 升星倍率：★2 = 3.0×，★3 = 7.0×；确保升星收益明显高于不升星。
+    double factor = (newStarLevel == 2) ? 3.0 : 7.0;
     // 用原始星1基础值乘倍率，避免装备或之前升星导致的重复叠乘。
     attack_ = static_cast<int>(star1Atk_ * factor) + itemAtk;
     maxHp_  = static_cast<int>(star1MaxHp_ * factor) + itemHp;
     hp_     = maxHp_;  // 升星后满血
     starLevel_ = newStarLevel;
+}
+
+int Unit::scaledSkillDamage(int baseDamage) const {
+    if (starLevel_ == 2) return static_cast<int>(baseDamage * 3.0);
+    if (starLevel_ == 3) return static_cast<int>(baseDamage * 7.0);
+    return baseDamage;  // ★1 不缩放
 }
 
 void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {

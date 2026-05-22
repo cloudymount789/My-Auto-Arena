@@ -43,6 +43,14 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
         "QPushButton:disabled { background-color: #45475A; color: #6C7086; }");
     connect(sellBtn_, SIGNAL(clicked()), this, SLOT(onSellClicked()));
 
+    unequipBtn_ = new QPushButton("卸下装备", this);
+    unequipBtn_->setEnabled(false);
+    unequipBtn_->setStyleSheet(
+        "QPushButton { background-color: #CBA6F7; color: #1E1E2E; font-weight: bold;"
+        " border-radius: 4px; padding: 4px; }"
+        "QPushButton:disabled { background-color: #45475A; color: #6C7086; }");
+    connect(unequipBtn_, SIGNAL(clicked()), this, SLOT(onUnequipClicked()));
+
     layout->addWidget(name_);
     layout->addWidget(classLabel_);
     layout->addWidget(starLabel_);
@@ -51,6 +59,7 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     layout->addWidget(range_);
     layout->addWidget(hp_);
     layout->addWidget(mana_);
+    layout->addWidget(unequipBtn_);
     layout->addWidget(sellBtn_);
     layout->addStretch();
 }
@@ -68,6 +77,7 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
         mana_->setMaximum(1);
         mana_->setValue(0);
         sellBtn_->setEnabled(false);
+        unequipBtn_->setEnabled(false);
         currentUnitId_ = -1;
         return;
     }
@@ -93,13 +103,21 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
     mana_->setMaximum(unit->maxMana());
     mana_->setValue(unit->mana());
 
-    // 仅玩家单位可出售。
-    sellBtn_->setEnabled(unit->owner() == core::UnitOwner::player);
+    const bool isPlayerUnit = (unit->owner() == core::UnitOwner::player);
+    sellBtn_->setEnabled(isPlayerUnit);
+    // 仅玩家单位且已装备道具时可卸装。
+    unequipBtn_->setEnabled(isPlayerUnit && unit->equippedItem() != core::ItemType::kNone);
 }
 
 void UnitInfoPanel::onSellClicked() {
     if (currentUnitId_ >= 0) {
         emit sellRequested(currentUnitId_);
+    }
+}
+
+void UnitInfoPanel::onUnequipClicked() {
+    if (currentUnitId_ >= 0) {
+        emit unequipRequested(currentUnitId_);
     }
 }
 

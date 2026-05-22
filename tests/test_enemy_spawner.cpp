@@ -34,12 +34,16 @@ TEST(EnemySpawnerTest, Round1SpawnsTwoEnemiesOnBoard) {
     }
 }
 
+// 无尽关卡模式：第7关及以上不再抛出异常，而是按指数公式生成敌方配置。
 TEST(EnemySpawnerTest, InvalidRoundThrowsOutOfRange) {
     Board board(8, 8, 8);
     EnemySpawner spawner;
     int nextId = 100;
-    // configForRound(99) の範囲外 → std::out_of_range がスローされる。
-    EXPECT_THROW(spawner.spawnRound(99, board, nextId), std::out_of_range);
+    // round=7 是无尽关的第一关，应正常产出敌方单位，不抛出异常。
+    EXPECT_NO_THROW(spawner.spawnRound(7, board, nextId));
+    // round=0 应被 clamp 为 round=1，同样不抛出。
+    int nextId2 = 200;
+    EXPECT_NO_THROW(spawner.spawnRound(0, board, nextId2));
 }
 
 TEST(EnemySpawnerTest, Round2SpawnsThreeEnemies) {

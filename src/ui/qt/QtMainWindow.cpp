@@ -183,6 +183,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     connect(shopPanel_, SIGNAL(heroPurchased(int)), this, SLOT(onHeroPurchased(int)));
     connect(shopPanel_, SIGNAL(refreshRequested()), this, SLOT(onShopRefresh()));
     connect(infoPanel_, SIGNAL(sellRequested(int)), this, SLOT(onSellUnit(int)));
+    connect(infoPanel_, SIGNAL(unequipRequested(int)), this, SLOT(onUnequipItem(int)));
     connect(levelUpBtn_, SIGNAL(clicked()), this, SLOT(onLevelUp()));
     connect(saveBtn_, SIGNAL(clicked()), this, SLOT(onSaveGame()));
     connect(loadBtn_, SIGNAL(clicked()), this, SLOT(onLoadGame()));
@@ -249,15 +250,12 @@ void QtMainWindow::onDragResult(core::DragResult result) {
         statusBar()->showMessage("非法操作", 1500);
     }
     updateStatusPanel();
+    updateSynergyDisplay();  // 拖拽后立即刷新备战区羁绊显示
 }
 
 void QtMainWindow::onStartBattle() {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("当前阶段不可操作", 1500);
-        return;
-    }
-    if (fsm_.currentRound() > 6) {
-        QMessageBox::information(this, "恭喜通关", "已通过全部 6 关！");
         return;
     }
     if (player_.populationOnBoard(board_) == 0) {
@@ -760,6 +758,32 @@ void QtMainWindow::onEquipItem() {
             .arg(def.bonusAtk)
             .arg(def.bonusMaxHp),
         2500);
+}
+
+void QtMainWindow::onUnequipItem(int unitId) {
+    std::map<int, core::Unit*>::iterator it = unitsMap_.find(unitId);
+    if (it == unitsMap_.end() || it->second == nullptr ||
+        it->second->owner() != core::UnitOwner::player) {
+        return;
+    }
+    core::Unit* unit = it->second;
+    const core::ItemType item = unit->equippedItem();
+    if (item == core::ItemType::kNone) {
+        return;
+    }
+    unit->unequipItem();
+    pendingItems_.push_back(item);  // 归还到待装备列表
+
+    infoPanel_->setUnit(unit);
+    updateItemsDisplay();
+    updateStatusPanel();
+
+    const core::ItemDef& def = core::getItemDef(item);
+    statusBar()->showMessage(
+        QString("%1 卸下了 %2（已归还到待装备列表）")
+            .arg(QString::fromStdString(unit->name()))
+            .arg(QString::fromStdString(def.name)),
+        2000);
 }
 
 }  // namespace ui
