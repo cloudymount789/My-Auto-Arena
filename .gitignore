@@ -2,8 +2,9 @@
 .cursor/
 .vscode/
 
-# Docs (requested)
+# Docs and PDFs
 docs/
+*.pdf
 
 # Build artifacts
 build/

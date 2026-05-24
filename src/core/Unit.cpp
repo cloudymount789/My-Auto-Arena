@@ -26,7 +26,9 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       bonusAtk_(0),
       bonusMaxHp_(0),
       star1Atk_(attack),
-      star1MaxHp_(maxHp) {
+      star1MaxHp_(maxHp),
+      hpBeforeEquip_(0),
+      state_(UnitState::kIdle) {
     // 允许 attack == 0，用于后续可能的纯辅助类单位。
     if (id < 0 || maxHp <= 0 || attack < 0 || attackRange <= 0 || maxMana <= 0) {
         throw std::invalid_argument("Invalid unit stats.");
@@ -49,7 +51,9 @@ Unit::Unit(const Unit& other)
       bonusAtk_(other.bonusAtk_),
       bonusMaxHp_(other.bonusMaxHp_),
       star1Atk_(other.star1Atk_),
-      star1MaxHp_(other.star1MaxHp_) {}
+      star1MaxHp_(other.star1MaxHp_),
+      hpBeforeEquip_(other.hpBeforeEquip_),
+      state_(other.state_) {}
 
 Unit& Unit::operator=(const Unit& other) {
     if (this == &other) {
@@ -71,6 +75,8 @@ Unit& Unit::operator=(const Unit& other) {
     bonusMaxHp_ = other.bonusMaxHp_;
     star1Atk_ = other.star1Atk_;
     star1MaxHp_ = other.star1MaxHp_;
+    hpBeforeEquip_ = other.hpBeforeEquip_;
+    state_ = other.state_;
     return *this;
 }
 
@@ -90,6 +96,9 @@ bool Unit::isAlive() const { return hp_ > 0; }
 UnitClass Unit::unitClass() const { return unitClass_; }
 int Unit::starLevel() const { return starLevel_; }
 ItemType Unit::equippedItem() const { return equippedItem_; }
+
+UnitState Unit::state() const { return state_; }
+void Unit::setState(UnitState s) { state_ = s; }
 
 void Unit::takeDamage(int amount) {
     if (amount <= 0 || !isAlive()) {
@@ -129,6 +138,7 @@ void Unit::equipItem(ItemType item) {
     attack_ += def.bonusAtk;
 
     if (def.bonusMaxHp > 0) {
+        hpBeforeEquip_ = hp_;
         // 装备增加最大血量时，按比例放大当前血量，避免穿甲后显示"受伤"状态。
         const int oldMax = maxHp();  // 含羁绊加成
         maxHp_ += def.bonusMaxHp;
@@ -149,10 +159,9 @@ void Unit::unequipItem() {
     const ItemDef& def = getItemDef(equippedItem_);
     attack_ -= def.bonusAtk;
     maxHp_ -= def.bonusMaxHp;
-    // 卸除加血装备后需将当前血量钳制到新的最大血量，避免 hp_ > maxHp() 的非法状态。
     if (def.bonusMaxHp > 0) {
-        hp_ = std::min(hp_, maxHp_);
-        hp_ = std::max(1, hp_);
+        hp_ = hpBeforeEquip_;
+        hpBeforeEquip_ = 0;
     }
     equippedItem_ = ItemType::kNone;
 }

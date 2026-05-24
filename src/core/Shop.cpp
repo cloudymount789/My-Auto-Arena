@@ -47,6 +47,12 @@ Unit* Shop::buy(int slotIndex, int& playerGold, int newUnitId) {
     return createHero(slots_[slotIndex].heroType, newUnitId, UnitOwner::player);
 }
 
+void Shop::cancelSlotSale(int slotIndex) {
+    if (slotIndex >= 0 && slotIndex < kSlotCount) {
+        slots_[slotIndex].sold = false;
+    }
+}
+
 int Shop::sellValue(int starLevel) {
     // star1=1金，star2=2金，star3=4金。
     if (starLevel == 2) return 2;

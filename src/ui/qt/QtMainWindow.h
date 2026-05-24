@@ -113,6 +113,7 @@ private:
     void updateItemsDisplay();  // 刷新右侧待装备道具面板
     void doSettlement();  // 战斗结束后：结算金币/HP、清理单位、切换 FSM
 
+    bool hasEmptyBenchSlot() const;
     // 将新购英雄放置到备战区第一个空槽；返回是否成功。
     bool placeHeroOnBench(core::Unit* hero);
 };

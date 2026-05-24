@@ -445,6 +445,11 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
         statusBar()->showMessage("战斗阶段无法购买英雄", 1500);
         return;
     }
+    if (!hasEmptyBenchSlot()) {
+        statusBar()->showMessage("备战区已满，无法购买", 1800);
+        return;
+    }
+
     int gold = player_.gold();
     core::Unit* hero = shop_.buy(slotIndex, gold, nextUnitId_++);
     if (hero == nullptr) {
@@ -454,10 +459,11 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
     player_.setGold(gold);
 
     if (!placeHeroOnBench(hero)) {
-        // 备战区已满，退款并删除英雄。
+        shop_.cancelSlotSale(slotIndex);
         player_.setGold(player_.gold() + core::Shop::kHeroCost);
         delete hero;
         statusBar()->showMessage("备战区已满，无法购买", 1800);
+        updateShopDisplay();
         return;
     }
 
@@ -613,6 +619,15 @@ void QtMainWindow::onLoadGame() {
     } else {
         QMessageBox::warning(this, "读档失败", "无法读取存档文件或格式错误！");
     }
+}
+
+bool QtMainWindow::hasEmptyBenchSlot() const {
+    for (int slot = 0; slot < board_.benchSize(); ++slot) {
+        if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {

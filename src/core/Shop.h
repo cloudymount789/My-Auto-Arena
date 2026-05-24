@@ -34,6 +34,9 @@ public:
     // 购买英雄：扣除金币，标记槽位售出，创建并返回英雄实例。
     Unit* buy(int slotIndex, int& playerGold, int newUnitId);
 
+    // 购买后未能入队（如备战区满）时恢复槽位为可购买。
+    void cancelSlotSale(int slotIndex);
+
     // 出售英雄获得金币：star1=1，star2=2，star3=4。
     static int sellValue(int starLevel);
 

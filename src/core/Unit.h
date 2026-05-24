@@ -16,6 +16,9 @@ enum class UnitOwner { player, enemy };
 // 职业分类：用于羁绊系统判断单位类型。
 enum class UnitClass { kNone, kWarrior, kArcher, kTank, kMage, kHealer };
 
+// 单位战斗状态机，对应规格书 Section 3.1 中的 S = {Idle, Moving, Attacking, Casting, Dead}。
+enum class UnitState { kIdle, kMoving, kAttacking, kCasting, kDead };
+
 class Unit {
 public:
     // 战斗单位基类：管理通用属性与基础战斗行为。
@@ -44,6 +47,10 @@ public:
     UnitClass unitClass() const;
     int starLevel() const;
     ItemType equippedItem() const;
+
+    // 战斗状态：由 BattleEngine 在每 tick 中更新，用于 GUI 状态展示与验收。
+    UnitState state() const;
+    void setState(UnitState s);
 
     void takeDamage(int amount);
     void gainMana(int amount);
@@ -92,6 +99,8 @@ private:
     int bonusMaxHp_;  // 羁绊系统临时加成
     int star1Atk_;    // 原始星级1攻击力（升星乘算用）
     int star1MaxHp_;  // 原始星级1血量（升星乘算用）
+    int hpBeforeEquip_;  // 穿戴加血装备前的 hp_，卸装时原样恢复
+    UnitState state_;    // 战斗状态机当前状态，每 tick 由 BattleEngine 更新
 };
 
 class WarriorUnit final : public Unit {

@@ -22,6 +22,13 @@ void BattleEngine::tick() {
     ++tickCount_;
     tickEvents_.clear();  // 每 tick 重置事件列表
 
+    // 每 tick 开始时将所有存活单位重置为 Idle，随后按行为更新到对应状态。
+    for (std::map<int, Unit*>::iterator it = units_.begin(); it != units_.end(); ++it) {
+        if (it->second != nullptr && it->second->isAlive()) {
+            it->second->setState(UnitState::kIdle);
+        }
+    }
+
     // Phase 1 — strikes and full-mana skills only. Resolving movement in the same pass as
     // attacks lets a lower map id move into range before the opponent acts, giving a free
     // first hit on the closing unit; splitting phases keeps contact exchanges symmetric.
@@ -38,6 +45,7 @@ void BattleEngine::tick() {
         const Position targetPos = board_.findUnitOnBoard(target->id());
 
         if (attacker->mana() >= attacker->maxMana()) {
+            attacker->setState(UnitState::kCasting);
             // 记录技能施法事件（在技能执行前记录，保证坐标有效）。
             BattleEvent ev;
             ev.type        = BattleEvent::Type::kSkill;
@@ -54,6 +62,7 @@ void BattleEngine::tick() {
         }
 
         if (inRange(*attacker, attackerPos, targetPos)) {
+            attacker->setState(UnitState::kAttacking);
             // 记录普通攻击事件。
             BattleEvent ev;
             ev.type        = BattleEvent::Type::kAttack;
@@ -91,6 +100,7 @@ void BattleEngine::tick() {
         if (inRange(*attacker, attackerPos, targetPos)) {
             continue;
         }
+        attacker->setState(UnitState::kMoving);
         tryMoveTowardTarget(attacker, target);
     }
 
@@ -190,6 +200,7 @@ void BattleEngine::clearDeadUnits() {
             ++it;
             continue;
         }
+        unit->setState(UnitState::kDead);
         const Position pos = board_.findUnitOnBoard(unit->id());
         if (board_.inBounds(pos)) {
             board_.clearOnBoard(pos);
