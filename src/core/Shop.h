@@ -18,7 +18,7 @@ class Shop {
 public:
     static const int kSlotCount   = 5;
     static const int kRefreshCost = 2;
-    static const int kHeroCost    = 3;
+    static const int kHeroCost    = 5;
 
     Shop();
     Shop(const Shop& other);

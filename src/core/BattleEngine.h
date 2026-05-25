@@ -27,7 +27,7 @@ struct BattleEvent {
 class BattleEngine {
 public:
     static const int kMaxTicks = 5000;
-    static const int kManaPerAttack = 10;
+    static const int kManaPerAttack = 25;  // 每次普攻回蓝，加快技能释放节奏
 
     BattleEngine(Board& board, std::map<int, Unit*>& units);
     BattleEngine(const BattleEngine& other) = delete;

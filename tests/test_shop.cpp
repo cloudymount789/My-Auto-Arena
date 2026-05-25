@@ -54,7 +54,7 @@ TEST(ShopTest, CannotBuyAlreadySoldSlot) {
 
 TEST(ShopTest, CannotBuyWithInsufficientGold) {
     Shop shop;
-    int gold = 1;  // 不足 kHeroCost=3
+    int gold = 1;  // 不足 kHeroCost=5
     EXPECT_FALSE(shop.canBuy(0, gold));
     Unit* hero = shop.buy(0, gold, 200);
     EXPECT_EQ(hero, nullptr);

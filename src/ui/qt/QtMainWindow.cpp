@@ -23,7 +23,7 @@ namespace ui {
 QtMainWindow::QtMainWindow(QWidget* parent)
     : QMainWindow(parent),
       board_(8, 8, 8),
-      player_(1, 8, 100, 1, 3),
+      player_(1, 8, 100, 1, 2),
       fsm_(),
       spawner_(),
       shop_(),
@@ -136,7 +136,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     playerGoldLabel_ = new QLabel("金币: 10", controlBar);
     playerGoldLabel_->setStyleSheet("font-size: 13px; color: #F9E2AF; min-width: 70px;");
 
-    populationLabel_ = new QLabel("人口: 0/3", controlBar);
+    populationLabel_ = new QLabel("人口: 0/2", controlBar);
     populationLabel_->setStyleSheet("font-size: 13px; color: #CDD6F4; min-width: 70px;");
 
     const QString btnStyle =
