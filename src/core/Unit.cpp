@@ -24,9 +24,11 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       starLevel_(1),
       equippedItems_(),
       bonusAtk_(0),
+      bonusMagAtk_(0),
       bonusMaxHp_(0),
       star1Atk_(attack),
       star1MaxHp_(maxHp),
+      star1MagAtk_(0),
       baseMagicAtk_(0),
       basePhysicalDef_(0),
       baseMagicDef_(0),
@@ -51,9 +53,11 @@ Unit::Unit(const Unit& other)
       starLevel_(other.starLevel_),
       equippedItems_(other.equippedItems_),
       bonusAtk_(other.bonusAtk_),
+      bonusMagAtk_(other.bonusMagAtk_),
       bonusMaxHp_(other.bonusMaxHp_),
       star1Atk_(other.star1Atk_),
       star1MaxHp_(other.star1MaxHp_),
+      star1MagAtk_(other.star1MagAtk_),
       baseMagicAtk_(other.baseMagicAtk_),
       basePhysicalDef_(other.basePhysicalDef_),
       baseMagicDef_(other.baseMagicDef_),
@@ -76,9 +80,11 @@ Unit& Unit::operator=(const Unit& other) {
     starLevel_ = other.starLevel_;
     equippedItems_ = other.equippedItems_;
     bonusAtk_ = other.bonusAtk_;
+    bonusMagAtk_ = other.bonusMagAtk_;
     bonusMaxHp_ = other.bonusMaxHp_;
     star1Atk_ = other.star1Atk_;
     star1MaxHp_ = other.star1MaxHp_;
+    star1MagAtk_ = other.star1MagAtk_;
     baseMagicAtk_ = other.baseMagicAtk_;
     basePhysicalDef_ = other.basePhysicalDef_;
     baseMagicDef_ = other.baseMagicDef_;
@@ -96,8 +102,8 @@ int Unit::maxHp() const { return baseMaxHp_ + equipmentBonusMaxHp() + bonusMaxHp
 int Unit::attack() const { return physicalAtk(); }
 // physicalAtk() = 基础物理攻击 + 装备物理攻加成 + 羁绊加成。
 int Unit::physicalAtk() const { return baseAttack_ + equipmentBonusPhysAtk() + bonusAtk_; }
-// magicAtk() = 基础法术攻击 + 装备法术攻加成（无羁绊加成）。
-int Unit::magicAtk() const { return baseMagicAtk_ + equipmentBonusMagAtk(); }
+// magicAtk() = 基础法术攻击 + 装备法术攻加成 + 羁绊法术加成（法师专用）。
+int Unit::magicAtk() const { return baseMagicAtk_ + equipmentBonusMagAtk() + bonusMagAtk_; }
 // physicalDef() = 基础物理防御 + 装备物防加成。
 int Unit::physicalDef() const { return basePhysicalDef_ + equipmentBonusPhysDef(); }
 // magicDef() = 基础法术防御 + 装备魔防加成。
@@ -194,13 +200,15 @@ void Unit::unequipItemAt(int slotIndex) {
     clampHpToCurrentMax();
 }
 
-void Unit::setSynergyBuffs(int bonusAtk, int bonusMaxHp) {
+void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp) {
     bonusAtk_ = bonusAtk;
+    bonusMagAtk_ = bonusMagAtk;
     bonusMaxHp_ = bonusMaxHp;
 }
 
 void Unit::clearSynergyBuffs() {
     bonusAtk_ = 0;
+    bonusMagAtk_ = 0;
     bonusMaxHp_ = 0;
 }
 
@@ -208,8 +216,12 @@ void Unit::upgradeToStar(int newStarLevel) {
     // 升星倍率：★2 = 3.0×，★3 = 7.0×；确保升星收益明显高于不升星。
     double factor = (newStarLevel == 2) ? 3.0 : 7.0;
     // 只提升基础属性；装备加成通过 getter 统一叠加，避免状态错乱。
-    baseAttack_ = static_cast<int>(star1Atk_ * factor);
-    baseMaxHp_  = static_cast<int>(star1MaxHp_ * factor);
+    baseAttack_   = static_cast<int>(star1Atk_    * factor);
+    baseMaxHp_    = static_cast<int>(star1MaxHp_  * factor);
+    // 法师的法术攻击随星级等比放大（star1MagAtk_ 非零时生效）。
+    if (star1MagAtk_ > 0) {
+        baseMagicAtk_ = static_cast<int>(star1MagAtk_ * factor);
+    }
     starLevel_ = newStarLevel;
     hp_ = maxHp();  // 升星后满血
 }
@@ -284,7 +296,10 @@ int Unit::equipmentBonusMaxHp() const {
     return total;
 }
 
-void Unit::setBaseMagicAtk(int v) { baseMagicAtk_ = v; }
+void Unit::setBaseMagicAtk(int v) {
+    baseMagicAtk_ = v;
+    star1MagAtk_  = v;  // 同步记录原始值，供 upgradeToStar() 按比例缩放
+}
 void Unit::setBasePhysicalDef(int v) { basePhysicalDef_ = v; }
 void Unit::setBaseMagicDef(int v) { baseMagicDef_ = v; }
 

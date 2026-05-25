@@ -119,12 +119,12 @@ TEST(SynergyTest, ThreeArchers_AtkBuff260) {
     EXPECT_EQ(a1.attack(), static_cast<int>(60 * 3.0) + 400);
 }
 
-// 法术 T1：3 个★1法师 = 3 点，+180 ATK
+// 法术 T1：3 个★1法师 = 3 点，+180 法术攻击（走 magicAtk 通道，不影响 attack()）
 TEST(SynergyTest, OneMage_AtkBuff120) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    MistWitchHero m1(1, UnitOwner::player);  // base ATK=38
+    MistWitchHero m1(1, UnitOwner::player);  // baseMagicAtk=38
     MistWitchHero m2(2, UnitOwner::player);
     MistWitchHero m3(3, UnitOwner::player);
     placeOnPlayerHalf(board, units, &m1, 6, 0);
@@ -133,11 +133,12 @@ TEST(SynergyTest, OneMage_AtkBuff120) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // 3 点 T1：+180 ATK
-    EXPECT_EQ(m1.attack(), 38 + 180);
+    // 法术羁绊加成仅提升 magicAtk()，物理 attack() 保持基础值。
+    EXPECT_EQ(m1.magicAtk(), 38 + 180);
+    EXPECT_EQ(m1.attack(),   38);       // 物理攻击不受法术羁绊影响
 }
 
-// 法术 T2：3 个★2法师 = 6 点，+450 ATK
+// 法术 T2：3 个★2法师 = 6 点，+450 法术攻击（升星后 baseMagicAtk 也随之缩放）
 TEST(SynergyTest, TwoMages_AtkBuff300) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
@@ -154,9 +155,11 @@ TEST(SynergyTest, TwoMages_AtkBuff300) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // 3 个★2 = 6 点，触发 T2：+450 ATK
-    EXPECT_EQ(m1.attack(), static_cast<int>(38 * 3.0) + 450);
-    EXPECT_EQ(m2.attack(), static_cast<int>(38 * 3.0) + 450);
+    // ★2 后 baseMagicAtk = 38*3=114；法术羁绊 T2 再加 +450
+    EXPECT_EQ(m1.magicAtk(), static_cast<int>(38 * 3.0) + 450);
+    EXPECT_EQ(m2.magicAtk(), static_cast<int>(38 * 3.0) + 450);
+    // 物理攻击也随升星缩放，但不受法术羁绊影响
+    EXPECT_EQ(m1.attack(), static_cast<int>(38 * 3.0));
 }
 
 // 圣愈 T1：3 个★1治疗师 = 3 点，全体 +1000 HP

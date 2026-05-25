@@ -81,7 +81,8 @@ public:
     void unequipItemAt(int slotIndex);
 
     // 羁绊 BUFF：每轮战斗开始前设置，结束后清除。
-    void setSynergyBuffs(int bonusAtk, int bonusMaxHp);
+    // bonusAtk 加到物理攻击；bonusMagAtk 加到法术攻击（法师羁绊专用）。
+    void setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp);
     void clearSynergyBuffs();
 
     // 升星：直接提升基础属性（star2=×3.0，star3=×7.0），装备加成由 getter 统一叠加。
@@ -101,6 +102,8 @@ protected:
     void setBaseMagicAtk(int v);
     void setBasePhysicalDef(int v);
     void setBaseMagicDef(int v);
+    // 装备法术攻击加成（供法师子类在技能中读取）。
+    int equipmentBonusMagAtk() const;
 
 private:
     int id_;
@@ -117,16 +120,17 @@ private:
     int starLevel_;
     std::vector<ItemType> equippedItems_;
     int bonusAtk_;           // 羁绊系统临时物理攻击加成
+    int bonusMagAtk_;        // 羁绊系统临时法术攻击加成（法师羁绊专用）
     int bonusMaxHp_;         // 羁绊系统临时血量加成
     int star1Atk_;           // 原始星级1物理攻击（升星乘算用）
     int star1MaxHp_;         // 原始星级1血量（升星乘算用）
+    int star1MagAtk_;        // 原始星级1法术攻击（升星乘算用，非法师默认0）
     int baseMagicAtk_;       // 基础法术攻击（法师专属，其余默认0）
     int basePhysicalDef_;    // 基础物理防御（通常为0，部分敌人设置）
     int baseMagicDef_;       // 基础法术防御（通常为0，部分敌人设置）
     UnitState state_;        // 战斗状态机当前状态，每 tick 由 BattleEngine 更新
 
     int equipmentBonusPhysAtk() const;
-    int equipmentBonusMagAtk() const;
     int equipmentBonusPhysDef() const;
     int equipmentBonusMagDef() const;
     int equipmentBonusMaxHp() const;

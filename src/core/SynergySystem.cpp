@@ -90,9 +90,10 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
                 continue;
             }
 
-            int bonusAtk = 0;
+            int bonusAtk    = 0;
+            int bonusMagAtk = 0;
             // 圣愈为全体提供 HP；近战羁绊只给近战单位加 ATK 和 HP。
-            int bonusHp  = healHpBonus;
+            int bonusHp     = healHpBonus;
 
             if (u->unitClass() == UnitClass::kWarrior || u->unitClass() == UnitClass::kTank) {
                 bonusAtk = meleeAtkBonus;
@@ -100,10 +101,11 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
             } else if (u->unitClass() == UnitClass::kArcher) {
                 bonusAtk = archerAtkBonus;
             } else if (u->unitClass() == UnitClass::kMage) {
-                bonusAtk = mageAtkBonus;
+                // 法术羁绊加成走 magicAtk 通道，不污染物理攻击。
+                bonusMagAtk = mageAtkBonus;
             }
 
-            u->setSynergyBuffs(bonusAtk, bonusHp);
+            u->setSynergyBuffs(bonusAtk, bonusMagAtk, bonusHp);
         }
     }
 }

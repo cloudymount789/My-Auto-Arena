@@ -74,7 +74,12 @@ void BattleEngine::tick() {
             ev.srcRow      = attackerPos.row;  ev.srcCol = attackerPos.col;
             ev.tgtRow      = targetPos.row;    ev.tgtCol = targetPos.col;
             tickEvents_.push_back(ev);
-            target->takePhysicalDamage(attacker->physicalAtk());
+            // 法师普攻走法术通道，利用 magicAtk()（含星级缩放 + 魔纹环加成）。
+            if (attacker->unitClass() == UnitClass::kMage) {
+                target->takeMagicDamage(attacker->magicAtk());
+            } else {
+                target->takePhysicalDamage(attacker->physicalAtk());
+            }
             attacker->gainMana(kManaPerAttack);
         }
     }

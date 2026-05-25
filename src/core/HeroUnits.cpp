@@ -89,7 +89,9 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeMagicDamage(scaledSkillDamage(420));
+        // 技能伤害 = 基础爆发(随星级缩放) + 装备法术攻加成（魔纹环可直接提升技能威力）。
+        const int skillDmg = scaledSkillDamage(420) + equipmentBonusMagAtk();
+        primaryTarget->takeMagicDamage(skillDmg);
     }
     spendAllMana();
 }
