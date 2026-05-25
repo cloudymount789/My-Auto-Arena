@@ -20,9 +20,9 @@ public:
     SpawnedEnemyUnit(int id, const EnemyTemplate& tpl, int starLevel)
         : Unit(id, tpl.name, UnitOwner::enemy, scaleStat(tpl.hp, starLevel), scaleStat(tpl.atk, starLevel), tpl.range,
                tpl.maxMana) {
-        // 物防/魔防不随升星缩放，固定由模板决定（代表装甲材质）。
-        setBasePhysicalDef(tpl.physDef);
-        setBaseMagicDef(tpl.magDef);
+        // 防御值随升星同比缩放，与 HP/ATK 保持一致的成长规律。
+        setBasePhysicalDef(scaleStat(tpl.physDef, starLevel));
+        setBaseMagicDef(scaleStat(tpl.magDef, starLevel));
     }
     // 显式拷贝构造函数：委托给 Unit，符合课程对所有实体类显式定义拷贝构造的要求。
     SpawnedEnemyUnit(const SpawnedEnemyUnit& other) : Unit(other) {}
@@ -37,13 +37,16 @@ const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 敌方基础值略高于对应玩家英雄，配合升星倍率形成后期压力。
     // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
     // 重甲战士和攻城弩设置高物防/低魔防，突出法师的克制关系。
+    // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
+    // 防御值设计原则：物防高=近战重甲；魔防高=法系单位；射手两防均低；
+    // 这些基础值会随关卡 statScaleFactor（无尽模式）和升星（scaleStat）同比膨胀。
     static const std::vector<EnemyTemplate> kTemplates = {
-        {"战士",     1700, 68, 1,  75,  10,  5},  // 0: 前排近战，轻甲
-        {"射手",     1300, 65, 4,  75,   5,  5},  // 1: 远程，皮甲
-        {"重甲战士", 2800, 52, 1,  90,  70, 10},  // 2: 重甲肉盾，物防极高，魔防低
-        {"法师",     1050, 45, 3,  70,   5, 15},  // 3: 法术单位，魔防稍高
-        {"治疗师",   1450, 30, 3,  80,   5,  5},  // 4: 辅助，无特殊抗性
-        {"攻城弩",   3200, 90, 5, 110,  80, 15},  // 5: BOSS重型机械，物防极高
+        {"战士",     1700, 68, 1,  75,  15,  5},  // 0: 轻甲前排，物防中等，魔防低
+        {"射手",     1300, 65, 4,  75,   5,  5},  // 1: 皮甲远程，两防均低
+        {"重甲战士", 2800, 52, 1,  90,  70, 15},  // 2: 重甲肉盾，物防极高，魔防中等
+        {"法师",     1050, 45, 3,  70,   5, 30},  // 3: 法术单位，物防低，魔防高
+        {"治疗师",   1450, 30, 3,  80,   5, 20},  // 4: 法系辅助，物防低，魔防较高
+        {"攻城弩",   3200, 90, 5, 110,  80, 15},  // 5: BOSS重型机械，物防极高，魔防中等
     };
     return kTemplates;
 }
@@ -179,11 +182,13 @@ std::vector<Unit*> EnemySpawner::spawnRound(int round, Board& board, int& nextUn
             !board.inBounds(entry.deployPos) || !board.isEnemyHalf(entry.deployPos)) {
             continue;
         }
-        // 无尽关卡：对模板 hp/atk 应用 statScaleFactor，再交给 SpawnedEnemyUnit 做升星乘算。
+        // 无尽关卡：对模板 hp/atk/physDef/magDef 统一应用 statScaleFactor 膨胀。
         EnemyTemplate scaledTpl = tpl.at(entry.templateIndex);
         if (cfg.statScaleFactor > 1.0 + 1e-6) {
-            scaledTpl.hp  = static_cast<int>(scaledTpl.hp  * cfg.statScaleFactor + 0.5);
-            scaledTpl.atk = static_cast<int>(scaledTpl.atk * cfg.statScaleFactor + 0.5);
+            scaledTpl.hp      = static_cast<int>(scaledTpl.hp      * cfg.statScaleFactor + 0.5);
+            scaledTpl.atk     = static_cast<int>(scaledTpl.atk     * cfg.statScaleFactor + 0.5);
+            scaledTpl.physDef = static_cast<int>(scaledTpl.physDef * cfg.statScaleFactor + 0.5);
+            scaledTpl.magDef  = static_cast<int>(scaledTpl.magDef  * cfg.statScaleFactor + 0.5);
         }
         Unit* unit = new SpawnedEnemyUnit(nextUnitId, scaledTpl, entry.starLevel);
         if (!board.placeOnBoard(unit->id(), entry.deployPos)) {

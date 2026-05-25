@@ -94,6 +94,11 @@ public:
     // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget);
 
+    // 普攻伤害类型标记：返回 true 表示使用法术通道（magicAtk + magicDef），
+    // 返回 false 表示使用物理通道（physicalAtk + physicalDef）。
+    // 由 PhysicalAttackUnit / MagicalAttackUnit 中间层重写，战斗引擎据此分发伤害类型。
+    virtual bool usesMagicAttack() const;
+
 protected:
     void spendAllMana();
     // 范围内对单目标造成普攻伤害；WarriorUnit/MageUnit 的默认技能共用此逻辑。
@@ -126,8 +131,10 @@ private:
     int star1MaxHp_;         // 原始星级1血量（升星乘算用）
     int star1MagAtk_;        // 原始星级1法术攻击（升星乘算用，非法师默认0）
     int baseMagicAtk_;       // 基础法术攻击（法师专属，其余默认0）
-    int basePhysicalDef_;    // 基础物理防御（通常为0，部分敌人设置）
-    int baseMagicDef_;       // 基础法术防御（通常为0，部分敌人设置）
+    int basePhysicalDef_;    // 基础物理防御（按职业特性设置，升星时缩放）
+    int baseMagicDef_;       // 基础法术防御（按职业特性设置，升星时缩放）
+    int star1PhysDef_;       // 原始星级1物理防御（升星乘算用）
+    int star1MagDef_;        // 原始星级1法术防御（升星乘算用）
     UnitState state_;        // 战斗状态机当前状态，每 tick 由 BattleEngine 更新
 
     int equipmentBonusPhysAtk() const;
@@ -137,20 +144,54 @@ private:
     void clampHpToCurrentMax();
 };
 
-class WarriorUnit final : public Unit {
+// ─────────────────────────────────────────────────────────────────────────────
+// 攻击类型中间层（模板类）：
+//   PhysicalAttackUnit — 物理攻击单位模板（战士/射手/重甲战士继承此层）
+//   MagicalAttackUnit  — 法术攻击单位模板（法师/治疗师继承此层）
+// 子类通过继承自动获得正确的普攻伤害类型，无需在战斗引擎中做 if-else 判断。
+// ─────────────────────────────────────────────────────────────────────────────
+
+// 物理攻击模板：usesMagicAttack() 返回 false，普攻走物理伤害通道。
+class PhysicalAttackUnit : public Unit {
+public:
+    PhysicalAttackUnit(int id, const std::string& name, UnitOwner owner,
+                       int maxHp, int attack, int attackRange, int maxMana,
+                       UnitClass unitClass);
+    // 显式拷贝构造函数：委托给 Unit，演示派生类拷贝语义。
+    PhysicalAttackUnit(const PhysicalAttackUnit& other);
+    virtual ~PhysicalAttackUnit() override = default;
+
+    virtual bool usesMagicAttack() const override;
+};
+
+// 法术攻击模板：usesMagicAttack() 返回 true，普攻走法术伤害通道。
+// 构造时自动调用 setBaseMagicAtk(attack)，将 attack 参数注入 baseMagicAtk_。
+class MagicalAttackUnit : public Unit {
+public:
+    MagicalAttackUnit(int id, const std::string& name, UnitOwner owner,
+                      int maxHp, int attack, int attackRange, int maxMana,
+                      UnitClass unitClass);
+    // 显式拷贝构造函数：委托给 Unit，baseMagicAtk_ 随 Unit 成员一并复制。
+    MagicalAttackUnit(const MagicalAttackUnit& other);
+    virtual ~MagicalAttackUnit() override = default;
+
+    virtual bool usesMagicAttack() const override;
+};
+
+class WarriorUnit final : public PhysicalAttackUnit {
 public:
     WarriorUnit(int id, UnitOwner owner);
-    // 显式拷贝构造函数：委托给基类 Unit，演示继承体系中的拷贝语义。
+    // 显式拷贝构造函数：委托给 PhysicalAttackUnit，演示继承体系中的拷贝语义。
     WarriorUnit(const WarriorUnit& other);
     virtual ~WarriorUnit() override = default;
 
     virtual void castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) override;
 };
 
-class MageUnit final : public Unit {
+class MageUnit final : public MagicalAttackUnit {
 public:
     MageUnit(int id, UnitOwner owner);
-    // 显式拷贝构造函数：委托给基类 Unit，演示继承体系中的拷贝语义。
+    // 显式拷贝构造函数：委托给 MagicalAttackUnit，演示继承体系中的拷贝语义。
     MageUnit(const MageUnit& other);
     virtual ~MageUnit() override = default;
 

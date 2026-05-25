@@ -9,9 +9,12 @@ namespace core {
 // 战士：近战爆发，HP 厚实，技能：对主目标造成 280 点爆发伤害。
 // 设计定位：前排冲锋，削减血量可让前期压力更明显。
 AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
-    : Unit(id, "战士", owner, 1600, 62, 1, 75, UnitClass::kWarrior) {}
+    : PhysicalAttackUnit(id, "战士", owner, 1600, 62, 1, 75, UnitClass::kWarrior) {
+    setBasePhysicalDef(20);   // 轻甲前排，物防中等
+    setBaseMagicDef(5);
+}
 
-AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : Unit(other) {}
+AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : PhysicalAttackUnit(other) {}
 
 void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
@@ -25,9 +28,12 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
 // 射手：远程输出（射程 4），技能：对主目标造成 360 点穿透伤害。
 // 设计定位：输出核心，弓手羁绊可极大提升其伤害，但HP偏低须保护。
 NightArcherHero::NightArcherHero(int id, UnitOwner owner)
-    : Unit(id, "射手", owner, 1200, 60, 4, 75, UnitClass::kArcher) {}
+    : PhysicalAttackUnit(id, "射手", owner, 1200, 60, 4, 75, UnitClass::kArcher) {
+    setBasePhysicalDef(5);    // 皮甲远程，两防均低
+    setBaseMagicDef(5);
+}
 
-NightArcherHero::NightArcherHero(const NightArcherHero& other) : Unit(other) {}
+NightArcherHero::NightArcherHero(const NightArcherHero& other) : PhysicalAttackUnit(other) {}
 
 void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
@@ -41,9 +47,12 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
 // 重甲战士：坦克近战，AOE 技能：对周围 4 相邻格敌方各造成 220 点伤害。
 // 设计定位：肉盾+AOE，近战羁绊为其解锁高ATK加成，但技能转换慢。
 CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
-    : Unit(id, "重甲战士", owner, 2600, 48, 1, 90, UnitClass::kTank) {}
+    : PhysicalAttackUnit(id, "重甲战士", owner, 2600, 48, 1, 90, UnitClass::kTank) {
+    setBasePhysicalDef(50);   // 重甲肉盾，物防高
+    setBaseMagicDef(15);      // 魔防中等
+}
 
-CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : Unit(other) {}
+CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : PhysicalAttackUnit(other) {}
 
 void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
@@ -74,16 +83,16 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     spendAllMana();
 }
 
-// 法师：中程法术输出，普攻以物攻(38)计算，技能以法攻(38)造成法术伤害（无视物理防御）。
+// 法师：中程法术输出，普攻与技能均为法术伤害（继承 MagicalAttackUnit）。
+// MagicalAttackUnit 构造时自动调用 setBaseMagicAtk(38)，无需手动设置。
 // 设计定位：对高物防低魔防敌人（如重甲战士/攻城弩）有显著优势；须有坦克掩护。
-// 魔纹环(+60 magAtk)可进一步体现法师在 UI 上的魔法属性。
 MistWitchHero::MistWitchHero(int id, UnitOwner owner)
-    : Unit(id, "法师", owner, 1000, 38, 3, 70, UnitClass::kMage) {
-    // 法术攻击与物理攻击并存：普攻走物理通道，技能走法术通道；魔纹环加成 magicAtk()。
-    setBaseMagicAtk(38);
+    : MagicalAttackUnit(id, "法师", owner, 1000, 38, 3, 70, UnitClass::kMage) {
+    setBasePhysicalDef(5);    // 布甲，物防低
+    setBaseMagicDef(25);      // 法术护盾，魔防高
 }
 
-MistWitchHero::MistWitchHero(const MistWitchHero& other) : Unit(other) {}
+MistWitchHero::MistWitchHero(const MistWitchHero& other) : MagicalAttackUnit(other) {}
 
 void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
@@ -96,13 +105,17 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     spendAllMana();
 }
 
-// 治疗师：辅助单位，技能：为射程内全体友方（含自身）治疗自身 maxHp * 15%。
+// 治疗师：辅助单位，普攻也为法术伤害（继承 MagicalAttackUnit）。
+// 技能：为射程内全体友方（含自身）治疗自身 maxHp * 15%。
 // 疗愈符（+800 maxHp）直接提升治疗量：1400 maxHp → 210/次，2200 maxHp → 330/次。
 // 设计定位：圣愈羁绊叠双治疗师可翻盘持久战；治疗量与 maxHp 装备正相关。
 BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
-    : Unit(id, "治疗师", owner, 1400, 28, 3, 80, UnitClass::kHealer) {}
+    : MagicalAttackUnit(id, "治疗师", owner, 1400, 28, 3, 80, UnitClass::kHealer) {
+    setBasePhysicalDef(5);    // 法系辅助，物防低
+    setBaseMagicDef(20);      // 魔防较高
+}
 
-BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : Unit(other) {}
+BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : MagicalAttackUnit(other) {}
 
 void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;

@@ -32,6 +32,8 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       baseMagicAtk_(0),
       basePhysicalDef_(0),
       baseMagicDef_(0),
+      star1PhysDef_(0),
+      star1MagDef_(0),
       state_(UnitState::kIdle) {
     // 允许 attack == 0，用于后续可能的纯辅助类单位。
     if (id < 0 || maxHp <= 0 || attack < 0 || attackRange <= 0 || maxMana <= 0) {
@@ -61,6 +63,8 @@ Unit::Unit(const Unit& other)
       baseMagicAtk_(other.baseMagicAtk_),
       basePhysicalDef_(other.basePhysicalDef_),
       baseMagicDef_(other.baseMagicDef_),
+      star1PhysDef_(other.star1PhysDef_),
+      star1MagDef_(other.star1MagDef_),
       state_(other.state_) {}
 
 Unit& Unit::operator=(const Unit& other) {
@@ -88,6 +92,8 @@ Unit& Unit::operator=(const Unit& other) {
     baseMagicAtk_ = other.baseMagicAtk_;
     basePhysicalDef_ = other.basePhysicalDef_;
     baseMagicDef_ = other.baseMagicDef_;
+    star1PhysDef_ = other.star1PhysDef_;
+    star1MagDef_ = other.star1MagDef_;
     state_ = other.state_;
     return *this;
 }
@@ -222,6 +228,13 @@ void Unit::upgradeToStar(int newStarLevel) {
     if (star1MagAtk_ > 0) {
         baseMagicAtk_ = static_cast<int>(star1MagAtk_ * factor);
     }
+    // 防御值随星级等比放大（非零时生效，保留0值单位不变）。
+    if (star1PhysDef_ > 0) {
+        basePhysicalDef_ = static_cast<int>(star1PhysDef_ * factor);
+    }
+    if (star1MagDef_ > 0) {
+        baseMagicDef_ = static_cast<int>(star1MagDef_ * factor);
+    }
     starLevel_ = newStarLevel;
     hp_ = maxHp();  // 升星后满血
 }
@@ -300,8 +313,14 @@ void Unit::setBaseMagicAtk(int v) {
     baseMagicAtk_ = v;
     star1MagAtk_  = v;  // 同步记录原始值，供 upgradeToStar() 按比例缩放
 }
-void Unit::setBasePhysicalDef(int v) { basePhysicalDef_ = v; }
-void Unit::setBaseMagicDef(int v) { baseMagicDef_ = v; }
+void Unit::setBasePhysicalDef(int v) {
+    basePhysicalDef_ = v;
+    star1PhysDef_ = v;  // 同步记录原始值，供 upgradeToStar() 按比例缩放
+}
+void Unit::setBaseMagicDef(int v) {
+    baseMagicDef_ = v;
+    star1MagDef_ = v;   // 同步记录原始值，供 upgradeToStar() 按比例缩放
+}
 
 void Unit::clampHpToCurrentMax() {
     const int currentMaxHp = maxHp();
@@ -313,9 +332,45 @@ void Unit::clampHpToCurrentMax() {
     }
 }
 
-WarriorUnit::WarriorUnit(int id, UnitOwner owner) : Unit(id, "Warrior", owner, 800, 65, 1, 100) {}
+// ─────────────────────────────────────────────────────────────────────────────
+// Unit::usesMagicAttack() 默认实现（物理攻击单位）
+// ─────────────────────────────────────────────────────────────────────────────
+bool Unit::usesMagicAttack() const { return false; }
 
-WarriorUnit::WarriorUnit(const WarriorUnit& other) : Unit(other) {}
+// ─────────────────────────────────────────────────────────────────────────────
+// PhysicalAttackUnit — 物理攻击中间层
+// ─────────────────────────────────────────────────────────────────────────────
+PhysicalAttackUnit::PhysicalAttackUnit(int id, const std::string& name, UnitOwner owner,
+                                       int maxHp, int attack, int attackRange, int maxMana,
+                                       UnitClass unitClass)
+    : Unit(id, name, owner, maxHp, attack, attackRange, maxMana, unitClass) {}
+
+PhysicalAttackUnit::PhysicalAttackUnit(const PhysicalAttackUnit& other) : Unit(other) {}
+
+bool PhysicalAttackUnit::usesMagicAttack() const { return false; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MagicalAttackUnit — 法术攻击中间层
+// 构造时自动调用 setBaseMagicAtk(attack)，将 attack 参数注入 baseMagicAtk_。
+// ─────────────────────────────────────────────────────────────────────────────
+MagicalAttackUnit::MagicalAttackUnit(int id, const std::string& name, UnitOwner owner,
+                                     int maxHp, int attack, int attackRange, int maxMana,
+                                     UnitClass unitClass)
+    : Unit(id, name, owner, maxHp, attack, attackRange, maxMana, unitClass) {
+    setBaseMagicAtk(attack);
+}
+
+MagicalAttackUnit::MagicalAttackUnit(const MagicalAttackUnit& other) : Unit(other) {}
+
+bool MagicalAttackUnit::usesMagicAttack() const { return true; }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// WarriorUnit / MageUnit（教学用基础单位，继承自对应中间层）
+// ─────────────────────────────────────────────────────────────────────────────
+WarriorUnit::WarriorUnit(int id, UnitOwner owner)
+    : PhysicalAttackUnit(id, "Warrior", owner, 800, 65, 1, 100, UnitClass::kWarrior) {}
+
+WarriorUnit::WarriorUnit(const WarriorUnit& other) : PhysicalAttackUnit(other) {}
 
 void WarriorUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)units;
@@ -323,9 +378,10 @@ void WarriorUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, U
     spendAllMana();
 }
 
-MageUnit::MageUnit(int id, UnitOwner owner) : Unit(id, "Mage", owner, 500, 45, 3, 100) {}
+MageUnit::MageUnit(int id, UnitOwner owner)
+    : MagicalAttackUnit(id, "Mage", owner, 500, 45, 3, 100, UnitClass::kMage) {}
 
-MageUnit::MageUnit(const MageUnit& other) : Unit(other) {}
+MageUnit::MageUnit(const MageUnit& other) : MagicalAttackUnit(other) {}
 
 void MageUnit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)units;
