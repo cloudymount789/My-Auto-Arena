@@ -183,7 +183,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     connect(shopPanel_, SIGNAL(heroPurchased(int)), this, SLOT(onHeroPurchased(int)));
     connect(shopPanel_, SIGNAL(refreshRequested()), this, SLOT(onShopRefresh()));
     connect(infoPanel_, SIGNAL(sellRequested(int)), this, SLOT(onSellUnit(int)));
-    connect(infoPanel_, SIGNAL(unequipRequested(int)), this, SLOT(onUnequipItem(int)));
+    connect(infoPanel_, SIGNAL(unequipRequested(int, int)), this, SLOT(onUnequipItem(int, int)));
     connect(levelUpBtn_, SIGNAL(clicked()), this, SLOT(onLevelUp()));
     connect(saveBtn_, SIGNAL(clicked()), this, SLOT(onSaveGame()));
     connect(loadBtn_, SIGNAL(clicked()), this, SLOT(onLoadGame()));
@@ -333,11 +333,12 @@ void QtMainWindow::doSettlement() {
 
         // 胜利时随机给予一件道具（轮次 >= 2 才开始掉落）。
         if (fsm_.currentRound() >= 2) {
-            const core::ItemType drops[4] = {
-                core::ItemType::kSword, core::ItemType::kArmor,
-                core::ItemType::kRing,  core::ItemType::kTalisman
+            const core::ItemType drops[5] = {
+                core::ItemType::kSword,    core::ItemType::kArmor,
+                core::ItemType::kRing,     core::ItemType::kTalisman,
+                core::ItemType::kRunicShield
             };
-            pendingItems_.push_back(drops[std::rand() % 4]);
+            pendingItems_.push_back(drops[std::rand() % 5]);
         }
     } else {
         outcome.hpPenalty = currentLevelCfg_.onLosePlayerHpDamage;
@@ -710,9 +711,15 @@ void QtMainWindow::updateItemsDisplay() {
         return;
     }
 
-    const bool canEquip = fsm_.canPlayerAct() && (currentSelectedUnitId_ >= 0) &&
-                          (unitsMap_.find(currentSelectedUnitId_) != unitsMap_.end()) &&
-                          (unitsMap_.at(currentSelectedUnitId_)->owner() == core::UnitOwner::player);
+    bool canEquip = fsm_.canPlayerAct() && (currentSelectedUnitId_ >= 0) &&
+                    (unitsMap_.find(currentSelectedUnitId_) != unitsMap_.end()) &&
+                    (unitsMap_.at(currentSelectedUnitId_)->owner() == core::UnitOwner::player);
+    if (canEquip) {
+        const core::Unit* selected = unitsMap_.at(currentSelectedUnitId_);
+        if (static_cast<int>(selected->equippedItems().size()) >= selected->equipSlotCount()) {
+            canEquip = false;
+        }
+    }
 
     for (int i = 0; i < static_cast<int>(pendingItems_.size()); ++i) {
         const core::ItemDef& def = core::getItemDef(pendingItems_.at(static_cast<std::size_t>(i)));
@@ -723,7 +730,10 @@ void QtMainWindow::updateItemsDisplay() {
             " border-radius: 3px; padding: 3px 6px; }"
             "QPushButton:disabled { background-color: #1E1E2E; color: #6C7086; }");
         btn->setEnabled(canEquip);
-        btn->setToolTip(QString("+%1 ATK  +%2 HP").arg(def.bonusAtk).arg(def.bonusMaxHp));
+        btn->setToolTip(QString("物攻+%1  法攻+%2  物防+%3  魔防+%4  HP+%5")
+            .arg(def.bonusPhysAtk).arg(def.bonusMagAtk)
+            .arg(def.bonusPhysDefense).arg(def.bonusMagDefense)
+            .arg(def.bonusMaxHp));
         btn->setProperty("itemIndex", i);
         connect(btn, SIGNAL(clicked()), this, SLOT(onEquipItem()));
         itemsLayout_->addWidget(btn);
@@ -751,6 +761,14 @@ void QtMainWindow::onEquipItem() {
     }
 
     core::Unit* unit = it->second;
+    if (static_cast<int>(unit->equippedItems().size()) >= unit->equipSlotCount()) {
+        statusBar()->showMessage(
+            QString("装备槽已满（%1/%2），请先卸下一件装备")
+                .arg(unit->equippedItems().size())
+                .arg(unit->equipSlotCount()),
+            2000);
+        return;
+    }
     const core::ItemType item = pendingItems_.at(static_cast<std::size_t>(idx));
     unit->equipItem(item);
     pendingItems_.erase(pendingItems_.begin() + idx);
@@ -762,15 +780,13 @@ void QtMainWindow::onEquipItem() {
 
     const core::ItemDef& def = core::getItemDef(item);
     statusBar()->showMessage(
-        QString("%1 装备了 %2 (+%3 ATK / +%4 HP)")
+        QString("%1 装备了 %2")
             .arg(QString::fromStdString(unit->name()))
-            .arg(QString::fromStdString(def.name))
-            .arg(def.bonusAtk)
-            .arg(def.bonusMaxHp),
+            .arg(QString::fromStdString(def.name)),
         2500);
 }
 
-void QtMainWindow::onUnequipItem(int unitId) {
+void QtMainWindow::onUnequipItem(int unitId, int slotIndex) {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法卸除装备", 1500);
         return;
@@ -781,12 +797,12 @@ void QtMainWindow::onUnequipItem(int unitId) {
         return;
     }
     core::Unit* unit = it->second;
-    const core::ItemType item = unit->equippedItem();
-    if (item == core::ItemType::kNone) {
+    if (slotIndex < 0 || slotIndex >= static_cast<int>(unit->equippedItems().size())) {
         return;
     }
-    unit->unequipItem();
-    pendingItems_.push_back(item);  // 归还到待装备列表
+    const core::ItemType item = unit->equippedItems().at(static_cast<std::size_t>(slotIndex));
+    unit->unequipItemAt(slotIndex);
+    pendingItems_.push_back(item);
 
     infoPanel_->setUnit(unit);
     updateItemsDisplay();
@@ -794,8 +810,9 @@ void QtMainWindow::onUnequipItem(int unitId) {
 
     const core::ItemDef& def = core::getItemDef(item);
     statusBar()->showMessage(
-        QString("%1 卸下了 %2（已归还到待装备列表）")
+        QString("%1 卸下了槽%2的 %3（已归还到待装备列表）")
             .arg(QString::fromStdString(unit->name()))
+            .arg(slotIndex + 1)
             .arg(QString::fromStdString(def.name)),
         2000);
 }

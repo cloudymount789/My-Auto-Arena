@@ -16,6 +16,8 @@ struct EnemyTemplate {
     int atk;
     int range;
     int maxMana;
+    int physDef;  // 基础物理防御；高物防单位适合用法师对抗
+    int magDef;   // 基础法术防御
 };
 
 struct SpawnEntry {

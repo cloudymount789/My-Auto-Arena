@@ -74,7 +74,7 @@ void BattleEngine::tick() {
             ev.srcRow      = attackerPos.row;  ev.srcCol = attackerPos.col;
             ev.tgtRow      = targetPos.row;    ev.tgtCol = targetPos.col;
             tickEvents_.push_back(ev);
-            target->takeDamage(attacker->attack());
+            target->takePhysicalDamage(attacker->physicalAtk());
             attacker->gainMana(kManaPerAttack);
         }
     }

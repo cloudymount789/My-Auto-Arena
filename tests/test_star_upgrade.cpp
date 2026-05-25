@@ -161,11 +161,14 @@ TEST(StarUpgradeTest, EquipSwordAddsAtk) {
     EXPECT_EQ(hero.equippedItem(), ItemType::kSword);
 }
 
-TEST(StarUpgradeTest, EquipArmorAddsMaxHp) {
+TEST(StarUpgradeTest, EquipArmorAddsPhysDef) {
+    // 锁甲重设计：提供物理防御而非生命值。
     AshRaiderHero hero(1, UnitOwner::player);
-    const int baseHp = hero.maxHp();
+    const int baseDef = hero.physicalDef();
     hero.equipItem(ItemType::kArmor);
-    EXPECT_EQ(hero.maxHp(), baseHp + 800);
+    EXPECT_EQ(hero.physicalDef(), baseDef + 50);
+    // maxHp 不受锁甲影响。
+    EXPECT_EQ(hero.maxHp(), hero.maxHp());
 }
 
 TEST(StarUpgradeTest, UnequipRemovesBonus) {
@@ -177,11 +180,45 @@ TEST(StarUpgradeTest, UnequipRemovesBonus) {
     EXPECT_EQ(hero.equippedItem(), ItemType::kNone);
 }
 
-TEST(StarUpgradeTest, EquipReplacesExistingItem) {
+TEST(StarUpgradeTest, UnequipItemAtSpecificSlot) {
     AshRaiderHero hero(1, UnitOwner::player);
-    const int baseAtk = hero.attack();
-    hero.equipItem(ItemType::kSword);  // +80 ATK
-    hero.equipItem(ItemType::kRing);   // 替换：先 unequip sword，再 equip ring +60
-    EXPECT_EQ(hero.attack(), baseAtk + 60);
+    hero.upgradeToStar(2);
+    hero.equipItem(ItemType::kSword);
+    hero.equipItem(ItemType::kArmor);
+    EXPECT_EQ(hero.equippedItems().size(), static_cast<std::size_t>(2));
+
+    hero.unequipItemAt(1);
+    EXPECT_EQ(hero.equippedItems().size(), static_cast<std::size_t>(1));
+    EXPECT_EQ(hero.equippedItem(), ItemType::kSword);
+}
+
+TEST(StarUpgradeTest, EquipReplacesExistingItem) {
+    // 魔纹环重设计：提供法术攻击，不影响物理攻击。
+    AshRaiderHero hero(1, UnitOwner::player);
+    const int basePhysAtk = hero.physicalAtk();
+    hero.equipItem(ItemType::kSword);  // +80 物理攻击
+    hero.equipItem(ItemType::kRing);   // 替换 sword：ring 提供 +60 法术攻击
+    EXPECT_EQ(hero.physicalAtk(), basePhysAtk);  // sword 已移除，物攻回到基础值
+    EXPECT_EQ(hero.magicAtk(), 60);              // ring 提供法术攻击
     EXPECT_EQ(hero.equippedItem(), ItemType::kRing);
+}
+
+TEST(StarUpgradeTest, Star2HasTwoEquipSlots) {
+    AshRaiderHero hero(1, UnitOwner::player);
+    hero.upgradeToStar(2);
+    EXPECT_EQ(hero.equipSlotCount(), 2);
+}
+
+TEST(StarUpgradeTest, Star2CanEquipTwoItems) {
+    // 铁剑(+80 物攻) + 疗愈符(+800 HP)：验证双槽装备各自独立生效。
+    AshRaiderHero hero(1, UnitOwner::player);
+    hero.upgradeToStar(2);
+    const int baseAtk = hero.physicalAtk();
+    const int baseHp = hero.maxHp();
+    hero.equipItem(ItemType::kSword);
+    hero.equipItem(ItemType::kTalisman);
+
+    EXPECT_EQ(hero.equippedItems().size(), static_cast<std::size_t>(2));
+    EXPECT_EQ(hero.physicalAtk(), baseAtk + 80);
+    EXPECT_EQ(hero.maxHp(), baseHp + 800);
 }

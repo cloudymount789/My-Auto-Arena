@@ -1,5 +1,6 @@
 #include "core/HeroUnits.h"
 
+#include <algorithm>
 #include <stdexcept>
 
 namespace my_auto_arena {
@@ -16,7 +17,7 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(scaledSkillDamage(280));
+        primaryTarget->takePhysicalDamage(scaledSkillDamage(280));
     }
     spendAllMana();
 }
@@ -32,7 +33,7 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(scaledSkillDamage(360));
+        primaryTarget->takePhysicalDamage(scaledSkillDamage(360));
     }
     spendAllMana();
 }
@@ -67,16 +68,20 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         }
         Unit* other = it->second;
         if (other->isAlive() && other->owner() != owner()) {
-            other->takeDamage(scaledSkillDamage(220));
+            other->takePhysicalDamage(scaledSkillDamage(220));
         }
     }
     spendAllMana();
 }
 
-// 法师：中程法术输出，技能：对主目标造成 420 点法术伤害。
-// 设计定位：爆发输出者，法术羁绊可让其伤害质变；HP最低须有坦克掩护。
+// 法师：中程法术输出，普攻以物攻(38)计算，技能以法攻(38)造成法术伤害（无视物理防御）。
+// 设计定位：对高物防低魔防敌人（如重甲战士/攻城弩）有显著优势；须有坦克掩护。
+// 魔纹环(+60 magAtk)可进一步体现法师在 UI 上的魔法属性。
 MistWitchHero::MistWitchHero(int id, UnitOwner owner)
-    : Unit(id, "法师", owner, 1000, 38, 3, 70, UnitClass::kMage) {}
+    : Unit(id, "法师", owner, 1000, 38, 3, 70, UnitClass::kMage) {
+    // 法术攻击与物理攻击并存：普攻走物理通道，技能走法术通道；魔纹环加成 magicAtk()。
+    setBaseMagicAtk(38);
+}
 
 MistWitchHero::MistWitchHero(const MistWitchHero& other) : Unit(other) {}
 
@@ -84,13 +89,14 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
-        primaryTarget->takeDamage(scaledSkillDamage(420));
+        primaryTarget->takeMagicDamage(scaledSkillDamage(420));
     }
     spendAllMana();
 }
 
-// 治疗师：辅助单位，技能：为血量最低的友方治疗 600 点；无其他友方则自愈 500 点。
-// 设计定位：持久战核心，圣愈羁绊叠双治疗师可翻盘持久战；单独用时收益有限。
+// 治疗师：辅助单位，技能：为射程内全体友方（含自身）治疗自身 maxHp * 15%。
+// 疗愈符（+800 maxHp）直接提升治疗量：1400 maxHp → 210/次，2200 maxHp → 330/次。
+// 设计定位：圣愈羁绊叠双治疗师可翻盘持久战；治疗量与 maxHp 装备正相关。
 BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
     : Unit(id, "治疗师", owner, 1400, 28, 3, 80, UnitClass::kHealer) {}
 
@@ -98,25 +104,32 @@ BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : Unit(other) {}
 
 void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
-    Unit* best = nullptr;
+    // 每次技能治疗量 = 自身 maxHp 的 15%（含装备加成）。
+    const int healAmount = std::max(1, static_cast<int>(maxHp() * 0.15));
+    const Position selfPos = board.findUnitOnBoard(id());
+    const int r = attackRange();
+
     for (std::map<int, Unit*>::iterator it = units.begin(); it != units.end(); ++it) {
         Unit* ally = it->second;
         if (ally == nullptr || !ally->isAlive() || ally->owner() != owner()) {
             continue;
         }
-        if (ally->id() == id()) {
+        // 如果治疗师在棋盘上，检查距离；否则仅治疗自身。
+        if (board.inBounds(selfPos)) {
+            const Position allyPos = board.findUnitOnBoard(ally->id());
+            if (!board.inBounds(allyPos)) {
+                continue;
+            }
+            const int dr = selfPos.row - allyPos.row;
+            const int dc = selfPos.col - allyPos.col;
+            if (dr * dr + dc * dc > r * r) {
+                continue;
+            }
+        } else if (ally->id() != id()) {
             continue;
         }
-        if (best == nullptr || ally->hp() < best->hp()) {
-            best = ally;
-        }
+        ally->heal(scaledSkillDamage(healAmount));
     }
-    if (best != nullptr) {
-        best->heal(scaledSkillDamage(600));
-    } else {
-        heal(scaledSkillDamage(500));
-    }
-    (void)board;
     spendAllMana();
 }
 

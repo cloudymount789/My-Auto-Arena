@@ -19,7 +19,11 @@ class SpawnedEnemyUnit final : public Unit {
 public:
     SpawnedEnemyUnit(int id, const EnemyTemplate& tpl, int starLevel)
         : Unit(id, tpl.name, UnitOwner::enemy, scaleStat(tpl.hp, starLevel), scaleStat(tpl.atk, starLevel), tpl.range,
-               tpl.maxMana) {}
+               tpl.maxMana) {
+        // 物防/魔防不随升星缩放，固定由模板决定（代表装甲材质）。
+        setBasePhysicalDef(tpl.physDef);
+        setBaseMagicDef(tpl.magDef);
+    }
     // 显式拷贝构造函数：委托给 Unit，符合课程对所有实体类显式定义拷贝构造的要求。
     SpawnedEnemyUnit(const SpawnedEnemyUnit& other) : Unit(other) {}
     virtual ~SpawnedEnemyUnit() override = default;
@@ -31,13 +35,15 @@ EnemySpawner::EnemySpawner() {}
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 模板顺序：战士 / 射手 / 重甲战士 / 法师 / 治疗师 / 攻城弩
     // 敌方基础值略高于对应玩家英雄，配合升星倍率形成后期压力。
+    // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
+    // 重甲战士和攻城弩设置高物防/低魔防，突出法师的克制关系。
     static const std::vector<EnemyTemplate> kTemplates = {
-        {"战士",     1700, 68, 1, 75},   // 0: 前排, 追着玩家打
-        {"射手",     1300, 65, 4, 75},   // 1: 远程, 优先射低血量目标
-        {"重甲战士", 2800, 52, 1, 90},   // 2: 超强肉盾 AOE
-        {"法师",     1050, 45, 3, 70},   // 3: 爆发型, 技能快
-        {"治疗师",   1450, 30, 3, 80},   // 4: 后排辅助, 敌方持久战关键
-        {"攻城弩",   3200, 90, 5, 110},  // 5: BOSS级远程, 第6关核心威胁
+        {"战士",     1700, 68, 1,  75,  10,  5},  // 0: 前排近战，轻甲
+        {"射手",     1300, 65, 4,  75,   5,  5},  // 1: 远程，皮甲
+        {"重甲战士", 2800, 52, 1,  90,  70, 10},  // 2: 重甲肉盾，物防极高，魔防低
+        {"法师",     1050, 45, 3,  70,   5, 15},  // 3: 法术单位，魔防稍高
+        {"治疗师",   1450, 30, 3,  80,   5,  5},  // 4: 辅助，无特殊抗性
+        {"攻城弩",   3200, 90, 5, 110,  80, 15},  // 5: BOSS重型机械，物防极高
     };
     return kTemplates;
 }

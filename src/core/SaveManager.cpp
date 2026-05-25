@@ -33,19 +33,21 @@ UnitClass SaveManager::strToUnitClass(const std::string& s) {
 
 std::string SaveManager::itemTypeToStr(ItemType t) {
     switch (t) {
-        case ItemType::kSword:    return "sword";
-        case ItemType::kArmor:    return "armor";
-        case ItemType::kRing:     return "ring";
-        case ItemType::kTalisman: return "talisman";
+        case ItemType::kSword:       return "sword";
+        case ItemType::kArmor:       return "armor";
+        case ItemType::kRing:        return "ring";
+        case ItemType::kTalisman:    return "talisman";
+        case ItemType::kRunicShield: return "runic_shield";
         default:                  return "none";
     }
 }
 
 ItemType SaveManager::strToItemType(const std::string& s) {
-    if (s == "sword")    return ItemType::kSword;
-    if (s == "armor")    return ItemType::kArmor;
-    if (s == "ring")     return ItemType::kRing;
-    if (s == "talisman") return ItemType::kTalisman;
+    if (s == "sword")        return ItemType::kSword;
+    if (s == "armor")        return ItemType::kArmor;
+    if (s == "ring")         return ItemType::kRing;
+    if (s == "talisman")     return ItemType::kTalisman;
+    if (s == "runic_shield") return ItemType::kRunicShield;
     return ItemType::kNone;
 }
 
@@ -80,7 +82,10 @@ bool SaveManager::save(const std::string& filepath,
             ofs << prefix << "name=" << u->name() << "\n";
             ofs << prefix << "class=" << unitClassToStr(u->unitClass()) << "\n";
             ofs << prefix << "star=" << u->starLevel() << "\n";
-            ofs << prefix << "item=" << itemTypeToStr(u->equippedItem()) << "\n";
+            ofs << prefix << "item_count=" << u->equippedItems().size() << "\n";
+            for (std::size_t itemIndex = 0; itemIndex < u->equippedItems().size(); ++itemIndex) {
+                ofs << prefix << "item" << itemIndex << "=" << itemTypeToStr(u->equippedItems().at(itemIndex)) << "\n";
+            }
 
             // 记录单位在棋盘或备战区的位置。
             const Position pos = board.findUnitOnBoard(u->id());
@@ -187,7 +192,6 @@ bool SaveManager::load(const std::string& filepath,
             const std::string uname = kv.at(prefix + "name");
             const UnitClass ucls  = strToUnitClass(kv.at(prefix + "class"));
             const int star   = std::stoi(kv.at(prefix + "star"));
-            const ItemType item = strToItemType(kv.at(prefix + "item"));
 
             // 根据名称/职业还原对应英雄类型。
             HeroType htype = HeroType::kWarrior;
@@ -200,7 +204,33 @@ bool SaveManager::load(const std::string& filepath,
             Unit* u = createHero(htype, uid, UnitOwner::player);
             if (star >= 2) u->upgradeToStar(2);
             if (star >= 3) u->upgradeToStar(3);
-            if (item != ItemType::kNone) u->equipItem(item);
+
+            // 兼容新旧存档：新格式为 item_count + itemN，旧格式仅有 item。
+            const std::string itemCountKey = prefix + "item_count";
+            std::map<std::string, std::string>::const_iterator itemCountIt = kv.find(itemCountKey);
+            if (itemCountIt != kv.end()) {
+                const int itemCount = std::stoi(itemCountIt->second);
+                for (int itemIndex = 0; itemIndex < itemCount; ++itemIndex) {
+                    const std::string itemKey = prefix + "item" + std::to_string(itemIndex);
+                    std::map<std::string, std::string>::const_iterator itemIt = kv.find(itemKey);
+                    if (itemIt == kv.end()) {
+                        continue;
+                    }
+                    const ItemType item = strToItemType(itemIt->second);
+                    if (item != ItemType::kNone) {
+                        u->equipItem(item);
+                    }
+                }
+            } else {
+                const std::string oldItemKey = prefix + "item";
+                std::map<std::string, std::string>::const_iterator oldItemIt = kv.find(oldItemKey);
+                if (oldItemIt != kv.end()) {
+                    const ItemType item = strToItemType(oldItemIt->second);
+                    if (item != ItemType::kNone) {
+                        u->equipItem(item);
+                    }
+                }
+            }
 
             playerUnits.push_back(u);
             unitsMap[uid] = u;
