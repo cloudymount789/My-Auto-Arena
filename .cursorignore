@@ -1,0 +1,7 @@
+build/
+build-qt/
+build-mingw/
+cmake-build-*/
+*.pdb
+*.exe
+.git/
