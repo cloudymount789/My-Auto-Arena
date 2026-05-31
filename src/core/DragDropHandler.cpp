@@ -25,6 +25,8 @@ DragDropHandler::DragDropHandler(Board& board) : board_(board), player_(nullptr)
 
 DragDropHandler::DragDropHandler(Board& board, const Player& player) : board_(board), player_(&player) {}
 
+// 流程：校验起止位置 ──> 取源/目标单位 ──> 检查玩家约束 ──> 清空源格
+//       ──> 目标空：放置源单位 ──> 目标有单位：交换两格（失败则回滚）
 DragResult DragDropHandler::execute(const DragLocation& from, const DragLocation& to) {
     if (isSameLocation(from, to)) {
         return DragResult::kSameLocation;
@@ -109,6 +111,7 @@ bool DragDropHandler::isSameLocation(const DragLocation& from, const DragLocatio
     return from.benchIndex == to.benchIndex;
 }
 
+// 流程：无玩家则放行 ──> 校验源单位归属 ──> 禁止拖到敌方半场 ──> 备战区上场检查人口上限
 DragResult DragDropHandler::checkPlayerConstraints(const DragLocation& from, const DragLocation& to,
                                                    int targetUnitId) const {
     if (player_ == nullptr) {

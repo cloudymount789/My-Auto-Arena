@@ -13,6 +13,7 @@ SceneCoordMapper::SceneCoordMapper(int boardRows, int boardCols, int benchSize, 
       boardOffsetY_(boardOffsetY),
       benchGap_(benchGap) {}
 
+// 流程：判断点击在棋盘区还是备战区 ──> 换算 row/col 或 bench 索引 ──> 写入 outLocation
 bool SceneCoordMapper::pixelToLocation(double sceneX, double sceneY, core::DragLocation& outLocation) const {
     const double boardWidth = boardCols_ * tileSize_;
     const double boardHeight = boardRows_ * tileSize_;
@@ -38,6 +39,7 @@ bool SceneCoordMapper::pixelToLocation(double sceneX, double sceneY, core::DragL
     return false;
 }
 
+// 流程：按 location 类型 ──> 棋盘格取中心像素 / 备战区取中心像素
 void SceneCoordMapper::locationToPixelCenter(const core::DragLocation& location, double& outX, double& outY) const {
     const double benchOriginY = boardOffsetY_ + boardRows_ * tileSize_ + benchGap_;
 

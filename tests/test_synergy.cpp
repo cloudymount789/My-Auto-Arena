@@ -23,7 +23,7 @@ TEST(SynergyTest, SingleWarrior_NoSynergy_NoBuffs) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    AshRaiderHero warrior(1, UnitOwner::player);  // 战士 base ATK=62
+    AshRaiderHero warrior(1, UnitOwner::player);  // 战士基础物攻=62
     placeOnPlayerHalf(board, units, &warrior, 6, 0);
 
     SynergySystem::applyBuffs(board, units);
@@ -31,14 +31,14 @@ TEST(SynergyTest, SingleWarrior_NoSynergy_NoBuffs) {
     EXPECT_EQ(warrior.attack(), 62);
 }
 
-// 近战 T1：星级点数 >= 3，近战单位 +70 ATK
+// 近战 T1：星级点数 >= 3，近战单位 +70 物攻
 // 3 个★1 = 3 点，恰好触发 T1
 TEST(SynergyTest, TwoMeleeUnits_AtkBuff45) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    AshRaiderHero warrior(1, UnitOwner::player);   // base ATK=62
-    CurseHammerHero tank(2, UnitOwner::player);    // base ATK=48
+    AshRaiderHero warrior(1, UnitOwner::player);   // 基础物攻=62
+    CurseHammerHero tank(2, UnitOwner::player);    // 基础物攻=48
     AshRaiderHero warrior2(3, UnitOwner::player);  // 第3个近战，凑满 3 点
     placeOnPlayerHalf(board, units, &warrior,  6, 0);
     placeOnPlayerHalf(board, units, &tank,     6, 1);
@@ -46,14 +46,14 @@ TEST(SynergyTest, TwoMeleeUnits_AtkBuff45) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // 近战 3 点羁绊（T1）：近战单位 +70 ATK，无 HP 加成。
+    // 近战 3 点羁绊（T1）：近战单位 +70 物攻，无生命加成。
     EXPECT_EQ(warrior.attack(),  62 + 70);
     EXPECT_EQ(tank.attack(),     48 + 70);
     EXPECT_EQ(warrior.maxHp(),  1600);
     EXPECT_EQ(tank.maxHp(),     2600);
 }
 
-// 近战 T2：星级点数 >= 6，近战单位 +180 ATK +1000 HP
+// 近战 T2：星级点数 >= 6，近战单位 +180 物攻 +1000 生命
 // 使用 3 个★2 = 6 点触发 T2
 TEST(SynergyTest, FourMeleeUnits_AtkBuff110_HpBuff500) {
     Board board(8, 8, 8);
@@ -72,19 +72,19 @@ TEST(SynergyTest, FourMeleeUnits_AtkBuff110_HpBuff500) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // T2 收益：+180 ATK +1000 HP
+    // T2 收益：+180 物攻 +1000 生命
     EXPECT_EQ(w1.attack(), static_cast<int>(62 * 3.0) + 180);
     EXPECT_EQ(t1.attack(), static_cast<int>(48 * 3.0) + 180);
     EXPECT_EQ(w1.maxHp(),  static_cast<int>(1600 * 3.0) + 1000);
     EXPECT_EQ(t1.maxHp(),  static_cast<int>(2600 * 3.0) + 1000);
 }
 
-// 弓手 T1：星级点数 >= 3，射手 +160 ATK
+// 弓手 T1：星级点数 >= 3，射手 +160 物攻
 TEST(SynergyTest, TwoArchers_AtkBuff100) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    NightArcherHero a1(1, UnitOwner::player);  // base ATK=60
+    NightArcherHero a1(1, UnitOwner::player);  // 基础物攻=60
     NightArcherHero a2(2, UnitOwner::player);
     NightArcherHero a3(3, UnitOwner::player);
     placeOnPlayerHalf(board, units, &a1, 6, 0);
@@ -93,12 +93,12 @@ TEST(SynergyTest, TwoArchers_AtkBuff100) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // 3 个★1射手 = 3 点，触发 T1：+160 ATK
+    // 3 个★1射手 = 3 点，触发 T1：+160 物攻
     EXPECT_EQ(a1.attack(), 60 + 160);
     EXPECT_EQ(a2.attack(), 60 + 160);
 }
 
-// 弓手 T2：星级点数 >= 6，射手 +400 ATK
+// 弓手 T2：星级点数 >= 6，射手 +400 物攻
 TEST(SynergyTest, ThreeArchers_AtkBuff260) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
@@ -115,7 +115,7 @@ TEST(SynergyTest, ThreeArchers_AtkBuff260) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // 3 个★2射手 = 6 点，触发 T2：+400 ATK
+    // 3 个★2射手 = 6 点，触发 T2：+400 物攻
     EXPECT_EQ(a1.attack(), static_cast<int>(60 * 3.0) + 400);
 }
 
@@ -124,7 +124,7 @@ TEST(SynergyTest, OneMage_AtkBuff120) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    MistWitchHero m1(1, UnitOwner::player);  // baseMagicAtk=38
+    MistWitchHero m1(1, UnitOwner::player);  // 基础法攻=38
     MistWitchHero m2(2, UnitOwner::player);
     MistWitchHero m3(3, UnitOwner::player);
     placeOnPlayerHalf(board, units, &m1, 6, 0);
@@ -138,7 +138,7 @@ TEST(SynergyTest, OneMage_AtkBuff120) {
     EXPECT_EQ(m1.attack(),   38);       // 物理攻击不受法术羁绊影响
 }
 
-// 法术 T2：3 个★2法师 = 6 点，+450 法术攻击（升星后 baseMagicAtk 也随之缩放）
+// 法术 T2：3 个★2法师 = 6 点，+450 法术攻击（升星后基础法攻也随之缩放）
 TEST(SynergyTest, TwoMages_AtkBuff300) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
@@ -155,22 +155,22 @@ TEST(SynergyTest, TwoMages_AtkBuff300) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // ★2 后 baseMagicAtk = 38*3=114；法术羁绊 T2 再加 +450
+    // ★2 后基础法攻 = 38*3=114；法术羁绊 T2 再加 +450
     EXPECT_EQ(m1.magicAtk(), static_cast<int>(38 * 3.0) + 450);
     EXPECT_EQ(m2.magicAtk(), static_cast<int>(38 * 3.0) + 450);
     // 物理攻击也随升星缩放，但不受法术羁绊影响
     EXPECT_EQ(m1.attack(), static_cast<int>(38 * 3.0));
 }
 
-// 圣愈 T1：3 个★1治疗师 = 3 点，全体 +1000 HP
+// 圣愈 T1：3 个★1治疗师 = 3 点，全体 +1000 生命
 TEST(SynergyTest, OneHealer_AllHpBuff800) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
 
-    BonePrayerHero h1(1, UnitOwner::player);   // base HP=1400
+    BonePrayerHero h1(1, UnitOwner::player);   // 基础生命=1400
     BonePrayerHero h2(2, UnitOwner::player);
     BonePrayerHero h3(3, UnitOwner::player);
-    AshRaiderHero warrior(4, UnitOwner::player);   // base HP=1600
+    AshRaiderHero warrior(4, UnitOwner::player);   // 基础生命=1600
     placeOnPlayerHalf(board, units, &h1,      6, 0);
     placeOnPlayerHalf(board, units, &h2,      6, 1);
     placeOnPlayerHalf(board, units, &h3,      6, 2);
@@ -178,12 +178,12 @@ TEST(SynergyTest, OneHealer_AllHpBuff800) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // T1：全体 +1000 HP
+    // T1：全体 +1000 生命
     EXPECT_EQ(h1.maxHp(),      1400 + 1000);
     EXPECT_EQ(warrior.maxHp(), 1600 + 1000);
 }
 
-// 圣愈 T2：3 个★2治疗师 = 6 点，全体 +2500 HP
+// 圣愈 T2：3 个★2治疗师 = 6 点，全体 +2500 生命
 TEST(SynergyTest, TwoHealers_AllHpBuff2000) {
     Board board(8, 8, 8);
     std::map<int, Unit*> units;
@@ -202,7 +202,7 @@ TEST(SynergyTest, TwoHealers_AllHpBuff2000) {
 
     SynergySystem::applyBuffs(board, units);
 
-    // T2：全体 +2500 HP
+    // T2：全体 +2500 生命
     EXPECT_EQ(warrior.maxHp(), 1600 + 2500);
     EXPECT_EQ(h1.maxHp(),      static_cast<int>(1400 * 3.0) + 2500);
 }
@@ -222,7 +222,7 @@ TEST(SynergyTest, ClearBuffsResetsToBase) {
     placeOnPlayerHalf(board, units, &warrior2, 6, 2);
 
     SynergySystem::applyBuffs(board, units);
-    EXPECT_GT(warrior.attack(), 62);  // T1 近战羁绊后有 ATK 加成
+    EXPECT_GT(warrior.attack(), 62);  // T1 近战羁绊后有物攻加成
 
     std::vector<Unit*> playerUnits = {&warrior, &tank, &warrior2};
     SynergySystem::clearBuffs(playerUnits);

@@ -7,16 +7,27 @@ namespace my_auto_arena {
 namespace core {
 
 // 装备类型枚举：玩家可收集并装备到英雄身上的道具。
-enum class ItemType { kNone, kSword, kArmor, kRing, kTalisman, kRunicShield };
+enum class ItemType {
+    kNone,
+    kSword,
+    kArmor,
+    kRing,
+    kTalisman,
+    kRunicShield,
+    kSwiftGloves,
+    kBlueCrystal
+};
 
-// 装备属性定义：各加成字段独立，支持物理/法术两类战斗属性。
+// 装备属性定义：百分比加成仅作用于单位「基础属性」，羁绊加成为战斗时额外叠加。
 struct ItemDef {
     std::string name;
-    int bonusPhysAtk;      // 物理攻击加成
-    int bonusMagAtk;       // 法术攻击加成
-    int bonusPhysDefense;  // 物理防御加成
-    int bonusMagDefense;   // 法术防御加成
-    int bonusMaxHp;        // 最大生命值加成
+    int bonusPhysAtkPercent;       // 物理攻击 +N%（相对基础物攻）
+    int bonusMagAtkPercent;        // 法术攻击 +N%（相对基础法攻）
+    int bonusPhysDefensePercent;   // 物理防御 +N%（相对基础物防）
+    int bonusMagDefensePercent;    // 法术防御 +N%（相对基础魔防）
+    int bonusMaxHpPercent;         // 最大生命 +N%（相对基础生命）
+    int bonusAttackSpeedPercent;   // 攻击速度 +N%（相对基础攻速 100）
+    int bonusMaxManaFlat;          // 最大法力固定修正（蓝水晶为 -30）
 };
 
 // 根据装备类型返回对应的属性定义。

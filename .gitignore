@@ -2,7 +2,7 @@
 .cursor/
 .vscode/
 
-# Docs and PDFs
+# Docs (requested)
 docs/
 *.pdf
 

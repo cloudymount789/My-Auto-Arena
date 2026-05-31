@@ -78,6 +78,7 @@ void Player::removeUnit(int unitId) {
 
 int Player::unitCount() const { return static_cast<int>(unitIds_.size()); }
 
+// 流程：遍历棋盘格子 ──> 统计属于本玩家的占用数 ──> 返回当前人口
 int Player::populationOnBoard(const Board& board) const {
     int count = 0;
     for (int row = 0; row < board.rows(); ++row) {

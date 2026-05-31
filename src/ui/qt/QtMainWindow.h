@@ -35,7 +35,7 @@ class ShopPanel;
 class UnitInfoPanel;
 
 // 主窗口：持有所有游戏状态（棋盘、玩家、单位、FSM、商店、羁绊等），
-// 并通过控制面板驱动 Phase 3 的完整游戏循环。
+// 并通过控制面板驱动第三阶段的完整游戏循环。
 class QtMainWindow : public QMainWindow {
     Q_OBJECT
 public:
@@ -49,7 +49,7 @@ private slots:
     void onNextRound();
     void onBattleTick();  // 定时器每步回调：推进若干 tick 并刷新场景
 
-    // Phase 3 新增槽函数
+    // 第三阶段新增槽函数
     void onHeroPurchased(int slotIndex);
     void onShopRefresh();
     void onSellUnit(int unitId);
@@ -57,7 +57,7 @@ private slots:
     void onSaveGame();
     void onLoadGame();
     void onEquipItem();    // 装备待装备道具到当前选中英雄
-    void onUnequipItem(int unitId);  // 卸下英雄当前装备并归还 pendingItems_
+    void onUnequipItem(int unitId, int slotIndex);  // 卸下指定槽位装备并归还 pendingItems_
 
 private:
     // ── 游戏核心状态 ─────────────────────────────────────────────
@@ -111,7 +111,7 @@ private:
     void updateSynergyDisplay();
     void updateShopDisplay();
     void updateItemsDisplay();  // 刷新右侧待装备道具面板
-    void doSettlement();  // 战斗结束后：结算金币/HP、清理单位、切换 FSM
+    void doSettlement();  // 战斗结束后：结算金币/生命值、清理单位、切换 FSM
 
     bool hasEmptyBenchSlot() const;
     // 将新购英雄放置到备战区第一个空槽；返回是否成功。

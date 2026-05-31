@@ -49,6 +49,7 @@ QRectF UnitGraphicsItem::boundingRect() const {
     return QRectF(0.0, 0.0, side, side);
 }
 
+// 流程：绘制圆角主体 ──> 绘制 HP/蓝条 ──> 绘制名称缩写 ──> 玩家单位绘制星级
 void UnitGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*, QWidget*) {
     const QRectF r = boundingRect();
     painter->setRenderHint(QPainter::Antialiasing, true);
@@ -95,6 +96,7 @@ void UnitGraphicsItem::paint(QPainter* painter, const QStyleOptionGraphicsItem*,
     }
 }
 
+// 流程：accept 事件 ──> 记录起始位置与偏移 ──> 切换抓手光标并置顶
 void UnitGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     if (event->button() != Qt::LeftButton) {
         QGraphicsObject::mousePressEvent(event);
@@ -109,6 +111,7 @@ void UnitGraphicsItem::mousePressEvent(QGraphicsSceneMouseEvent* event) {
     setZValue(100.0);
 }
 
+// 流程：左键按住时标记 dragged ──> 更新图元位置 ──> 发出 dragMoved 信号
 void UnitGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     if (!(event->buttons() & Qt::LeftButton)) {
         QGraphicsObject::mouseMoveEvent(event);
@@ -121,6 +124,7 @@ void UnitGraphicsItem::mouseMoveEvent(QGraphicsSceneMouseEvent* event) {
     emit dragMoved(unitId_, event->scenePos());
 }
 
+// 流程：松开左键 ──> 恢复光标与层级 ──> 未拖动则 unitClicked，否则 dragFinished
 void UnitGraphicsItem::mouseReleaseEvent(QGraphicsSceneMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         event->accept();

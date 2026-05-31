@@ -16,6 +16,7 @@ void ConsoleRenderer::render(std::ostream& out, const core::Board& board,
     renderUnitStats(out, units);
 }
 
+// 流程：打印列号 ──> 逐行逐列查占用 ──> 输出单位缩写码
 void ConsoleRenderer::renderBoard(std::ostream& out, const core::Board& board,
                                   const std::vector<const core::Unit*>& units) const {
     out << "========== Board (" << board.rows() << "x" << board.cols() << ") ==========\n";
@@ -39,6 +40,7 @@ void ConsoleRenderer::renderBoard(std::ostream& out, const core::Board& board,
     }
 }
 
+// 流程：遍历备战区槽位 ──> 查占用单位 ──> 输出缩写码
 void ConsoleRenderer::renderBench(std::ostream& out, const core::Board& board,
                                   const std::vector<const core::Unit*>& units) const {
     out << "========== Bench (" << board.benchSize() << " slots) ==========\n";
@@ -50,6 +52,7 @@ void ConsoleRenderer::renderBench(std::ostream& out, const core::Board& board,
     out << '\n';
 }
 
+// 流程：遍历单位列表 ──> 逐条输出 HP/蓝量/攻击/射程
 void ConsoleRenderer::renderUnitStats(std::ostream& out, const std::vector<const core::Unit*>& units) const {
     out << "========== Unit Stats ==========\n";
     for (int i = 0; i < static_cast<int>(units.size()); ++i) {
@@ -60,6 +63,7 @@ void ConsoleRenderer::renderUnitStats(std::ostream& out, const std::vector<const
     }
 }
 
+// 流程：校验 id ──> 线性扫描 units ──> 匹配则返回指针
 const core::Unit* ConsoleRenderer::findUnitById(int id, const std::vector<const core::Unit*>& units) const {
     if (id < 0) {
         return nullptr;
@@ -73,6 +77,7 @@ const core::Unit* ConsoleRenderer::findUnitById(int id, const std::vector<const 
     return nullptr;
 }
 
+// 流程：空单位返回空格 ──> 取名称前两字符作为棋盘缩写
 std::string ConsoleRenderer::unitCode(const core::Unit* unit) const {
     if (unit == nullptr) {
         return "  ";

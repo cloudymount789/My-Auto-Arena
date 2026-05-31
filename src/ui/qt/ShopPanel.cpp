@@ -7,6 +7,7 @@
 namespace my_auto_arena {
 namespace ui {
 
+// 流程：搭建标题与槽位按钮行 ──> 绑定点击信号 ──> 添加刷新按钮
 ShopPanel::ShopPanel(QWidget* parent) : QWidget(parent) {
     setStyleSheet("background-color: #181825; border-radius: 6px;");
 
@@ -35,12 +36,12 @@ ShopPanel::ShopPanel(QWidget* parent) : QWidget(parent) {
         slotBtns_[i]->setStyleSheet(slotStyle);
         slotsLayout->addWidget(slotBtns_[i]);
 
-        // 绑定点击信号，通过 lambda-like 方式传递槽位索引（Qt4 风格：手动映射）。
+        // 绑定点击信号，通过类似 lambda 的方式传递槽位索引（Qt4 风格：手动映射）。
         slotBtns_[i]->setProperty("slotIndex", i);
         connect(slotBtns_[i], SIGNAL(clicked()), this, SLOT(onSlotClicked()));
     }
-    // 由于 Qt4 风格 SIGNAL/SLOT 不支持带参数的直接绑定，改用 QSignalMapper 替代方案。
-    // 这里使用简单的 sender() 判断。
+    // 由于 Qt4 风格 SIGNAL/SLOT 不支持带参数的直接绑定，可改用 QSignalMapper 替代方案。
+    // 这里使用简单的 sender() 判断点击来源。
     mainLayout->addWidget(slotsRow);
 
     // 刷新按钮
@@ -53,6 +54,7 @@ ShopPanel::ShopPanel(QWidget* parent) : QWidget(parent) {
     mainLayout->addWidget(refreshBtn_);
 }
 
+// 流程：遍历 5 个槽位 ──> 已售出则禁用 ──> 否则显示英雄名与价格并校验金币
 void ShopPanel::updateDisplay(const core::Shop& shop, int playerGold) {
     for (int i = 0; i < core::Shop::kSlotCount; ++i) {
         const core::ShopSlot& slot = shop.slotAt(i);
@@ -80,6 +82,7 @@ void ShopPanel::onRefreshClicked() {
     emit refreshRequested();
 }
 
+// 流程：switch HeroType ──> 返回中文职业名
 QString ShopPanel::heroTypeName(core::HeroType type) {
     switch (type) {
         case core::HeroType::kWarrior: return "战士";

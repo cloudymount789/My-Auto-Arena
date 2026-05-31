@@ -8,6 +8,7 @@
 namespace my_auto_arena {
 namespace ui {
 
+// 流程：创建标签/进度条/出售按钮 ──> 组装垂直布局 ──> 连接出售信号
 UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(-1) {
     setStyleSheet("background-color: #1E1E2E; border-radius: 6px; color: #CDD6F4;");
     QVBoxLayout* layout = new QVBoxLayout(this);
@@ -31,8 +32,11 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     equipSlotsLayout_->setContentsMargins(0, 0, 0, 0);
     equipSlotsLayout_->setSpacing(3);
 
-    attack_ = new QLabel("ATK: -", this);
-    range_  = new QLabel("射程: -", this);
+    atkLabel_      = new QLabel("ATK: -", this);
+    physDefLabel_  = new QLabel("物防: -", this);
+    magDefLabel_   = new QLabel("魔防: -", this);
+    atkSpeedLabel_ = new QLabel("攻速: -", this);
+    range_         = new QLabel("射程: -", this);
 
     hp_   = new QProgressBar(this);
     mana_ = new QProgressBar(this);
@@ -54,7 +58,10 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     layout->addWidget(starLabel_);
     layout->addWidget(equipSlotLabel_);
     layout->addWidget(equipSlotsWidget_);
-    layout->addWidget(attack_);
+    layout->addWidget(atkLabel_);
+    layout->addWidget(physDefLabel_);
+    layout->addWidget(magDefLabel_);
+    layout->addWidget(atkSpeedLabel_);
     layout->addWidget(range_);
     layout->addWidget(hp_);
     layout->addWidget(mana_);
@@ -72,6 +79,7 @@ void UnitInfoPanel::clearEquipSlotRows() {
     }
 }
 
+// 流程：清空旧行 ──> 无装备则占位文案 ──> 逐槽创建装备名+卸下按钮
 void UnitInfoPanel::rebuildEquipSlotRows(const core::Unit* unit, bool isPlayerUnit) {
     clearEquipSlotRows();
 
@@ -117,6 +125,7 @@ void UnitInfoPanel::rebuildEquipSlotRows(const core::Unit* unit, bool isPlayerUn
     }
 }
 
+// 流程：unit 为空则重置面板 ──> 否则填充名称/职业/星级/攻防/血蓝 ──> 重建装备槽行
 void UnitInfoPanel::setUnit(const core::Unit* unit) {
     if (unit == nullptr) {
         name_->setText("名称: -");
@@ -127,7 +136,10 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
         QLabel* empty = new QLabel("（无装备）", equipSlotsWidget_);
         empty->setStyleSheet("color: #6C7086; font-size: 11px;");
         equipSlotsLayout_->addWidget(empty);
-        attack_->setText("ATK: -");
+        atkLabel_->setText("ATK: -");
+        physDefLabel_->setText("物防: -");
+        magDefLabel_->setText("魔防: -");
+        atkSpeedLabel_->setText("攻速: -");
         range_->setText("射程: -");
         hp_->setMaximum(1);
         hp_->setValue(0);
@@ -155,23 +167,27 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
     const bool isPlayerUnit = (unit->owner() == core::UnitOwner::player);
     rebuildEquipSlotRows(unit, isPlayerUnit);
 
-    // 法师以法攻为主；其余职业以物攻为主。防御非零时附加显示。
-    QString atkText;
-    if (unit->magicAtk() > unit->physicalAtk()) {
-        atkText = QString("法攻: %1").arg(unit->magicAtk());
+    // 攻击类型由中间层决定：法术攻击单位显示法攻，物理攻击单位显示物攻。
+    if (unit->usesMagicAttack()) {
+        atkLabel_->setText(QString("法攻: %1").arg(unit->magicAtk()));
+        atkLabel_->setStyleSheet("font-size: 12px; color: #89DCEB;");
     } else {
-        atkText = QString("物攻: %1").arg(unit->physicalAtk());
-        if (unit->magicAtk() > 0) {
-            atkText += QString("  法攻: %1").arg(unit->magicAtk());
-        }
+        atkLabel_->setText(QString("物攻: %1").arg(unit->physicalAtk()));
+        atkLabel_->setStyleSheet("font-size: 12px; color: #FAB387;");
     }
-    if (unit->physicalDef() > 0) {
-        atkText += QString("  物防: %1").arg(unit->physicalDef());
-    }
-    if (unit->magicDef() > 0) {
-        atkText += QString("  魔防: %1").arg(unit->magicDef());
-    }
-    attack_->setText(atkText);
+    // 物防与魔防始终显示（非零高亮，为零灰显），便于玩家了解完整防御属性。
+    physDefLabel_->setText(QString("物防: %1").arg(unit->physicalDef()));
+    physDefLabel_->setStyleSheet(unit->physicalDef() > 0
+        ? "font-size: 12px; color: #A6E3A1;"
+        : "font-size: 12px; color: #6C7086;");
+    magDefLabel_->setText(QString("魔防: %1").arg(unit->magicDef()));
+    magDefLabel_->setStyleSheet(unit->magicDef() > 0
+        ? "font-size: 12px; color: #CBA6F7;"
+        : "font-size: 12px; color: #6C7086;");
+    atkSpeedLabel_->setText(QString("攻速: %1").arg(unit->attackSpeed()));
+    atkSpeedLabel_->setStyleSheet(unit->attackSpeed() > 100
+        ? "font-size: 12px; color: #F9E2AF;"
+        : "font-size: 12px; color: #6C7086;");
     range_->setText(QString("射程: %1").arg(unit->attackRange()));
     hp_->setMaximum(unit->maxHp());
     hp_->setValue(unit->hp());
@@ -199,6 +215,7 @@ void UnitInfoPanel::onUnequipSlotClicked() {
     emit unequipRequested(currentUnitId_, slotIndex);
 }
 
+// 流程：switch UnitClass ──> 返回中文职业名
 QString UnitInfoPanel::unitClassName(core::UnitClass cls) {
     switch (cls) {
         case core::UnitClass::kWarrior: return "战士";

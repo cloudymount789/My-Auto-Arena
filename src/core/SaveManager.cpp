@@ -11,6 +11,7 @@ namespace core {
 
 // ── 辅助转换函数 ─────────────────────────────────────────────────────────────
 
+// 流程：switch 职业枚举 ──> 映射为英文字符串 ──> 默认返回 "none"
 std::string SaveManager::unitClassToStr(UnitClass cls) {
     switch (cls) {
         case UnitClass::kWarrior: return "warrior";
@@ -22,6 +23,7 @@ std::string SaveManager::unitClassToStr(UnitClass cls) {
     }
 }
 
+// 流程：逐条比对职业字符串 ──> 命中则返回对应 UnitClass ──> 未命中返回 kNone
 UnitClass SaveManager::strToUnitClass(const std::string& s) {
     if (s == "warrior") return UnitClass::kWarrior;
     if (s == "archer")  return UnitClass::kArcher;
@@ -31,6 +33,7 @@ UnitClass SaveManager::strToUnitClass(const std::string& s) {
     return UnitClass::kNone;
 }
 
+// 流程：switch 装备枚举 ──> 映射为英文字符串 ──> 默认返回 "none"
 std::string SaveManager::itemTypeToStr(ItemType t) {
     switch (t) {
         case ItemType::kSword:       return "sword";
@@ -38,21 +41,27 @@ std::string SaveManager::itemTypeToStr(ItemType t) {
         case ItemType::kRing:        return "ring";
         case ItemType::kTalisman:    return "talisman";
         case ItemType::kRunicShield: return "runic_shield";
+        case ItemType::kSwiftGloves: return "swift_gloves";
+        case ItemType::kBlueCrystal: return "blue_crystal";
         default:                  return "none";
     }
 }
 
+// 流程：逐条比对装备字符串 ──> 命中则返回对应 ItemType ──> 未命中返回 kNone
 ItemType SaveManager::strToItemType(const std::string& s) {
     if (s == "sword")        return ItemType::kSword;
     if (s == "armor")        return ItemType::kArmor;
     if (s == "ring")         return ItemType::kRing;
     if (s == "talisman")     return ItemType::kTalisman;
     if (s == "runic_shield") return ItemType::kRunicShield;
+    if (s == "swift_gloves") return ItemType::kSwiftGloves;
+    if (s == "blue_crystal") return ItemType::kBlueCrystal;
     return ItemType::kNone;
 }
 
 // ── 存档 ─────────────────────────────────────────────────────────────────────
 
+// 流程：打开文件 ──> 写入 FSM/玩家全局字段 ──> 逐英雄序列化属性/装备/位置 ──> 写入待装备列表 ──> 关闭并返回成功
 bool SaveManager::save(const std::string& filepath,
                        const GameFSM& fsm,
                        const Player& player,
@@ -121,6 +130,7 @@ bool SaveManager::save(const std::string& filepath,
 
 // ── 读档 ─────────────────────────────────────────────────────────────────────
 
+// 流程：解析 key=value ──> 快进 FSM 到目标回合 ──> 清理旧单位与棋盘占位 ──> 重建英雄/装备/落位 ──> 恢复待装备列表
 bool SaveManager::load(const std::string& filepath,
                        GameFSM& fsm,
                        Player& player,

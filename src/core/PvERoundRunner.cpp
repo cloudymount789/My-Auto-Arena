@@ -6,10 +6,12 @@
 namespace my_auto_arena {
 namespace core {
 
+// 流程：读取关卡配置 ──> 生成敌方并注册 ──> 驱动 BattleEngine 至结束
+//       ──> 结算金币/扣血 ──> 释放阵亡敌方内存 ──> 清理存活敌方
 RoundOutcome PvERoundRunner::runRoundBattle(Board& board, Player& player, std::map<int, Unit*>& units, int roundIndex,
                                             EnemySpawner& spawner, int& nextUnitId) {
     const LevelConfig cfg = spawner.configForRound(roundIndex);
-    // PvERoundRunner 负责 spawned 中所有指针的生命周期（new 由 EnemySpawner::spawnRound 执行）。
+    // PvERoundRunner 负责 spawned 列表中所有指针的生命周期（new 由 EnemySpawner::spawnRound 执行）。
     std::vector<Unit*> spawned = spawner.spawnRound(roundIndex, board, nextUnitId);
     for (std::size_t i = 0; i < spawned.size(); ++i) {
         Unit* unit = spawned.at(i);
@@ -35,7 +37,7 @@ RoundOutcome PvERoundRunner::runRoundBattle(Board& board, Player& player, std::m
         outcome.gameOver = (player.hp() <= 0);
     }
 
-    // 释放所有 spawned 指针：
+    // 释放所有已生成单位的指针：
     //   - 战斗中已死亡的敌方单位已被 BattleEngine::clearDeadUnits 从 units 中移除（但未 delete）
     //   - 战斗后仍存活的敌方单位由 removeEnemyUnits 清理 Board 并 delete
     // 因此死亡单位需在这里补充 delete。
@@ -50,6 +52,7 @@ RoundOutcome PvERoundRunner::runRoundBattle(Board& board, Player& player, std::m
     return outcome;
 }
 
+// 流程：遍历 units_ ──> 筛出敌方单位 ──> 清空棋盘占位 ──> delete 并 erase
 void PvERoundRunner::removeEnemyUnits(Board& board, std::map<int, Unit*>& units) {
     for (std::map<int, Unit*>::iterator it = units.begin(); it != units.end();) {
         Unit* unit = it->second;

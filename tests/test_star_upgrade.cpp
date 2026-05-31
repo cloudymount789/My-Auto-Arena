@@ -16,7 +16,7 @@ using namespace my_auto_arena::core;
 
 TEST(StarUpgradeTest, UpgradeToStar2MultipliesStats) {
     AshRaiderHero hero(1, UnitOwner::player);
-    // star1 基础（重平衡后）：ATK=62, MaxHP=1600
+    // 1 星基础（重平衡后）：物攻=62，最大生命=1600
     // ★2 倍率 = 3.0x
     hero.upgradeToStar(2);
     EXPECT_EQ(hero.starLevel(), 2);
@@ -28,7 +28,7 @@ TEST(StarUpgradeTest, UpgradeToStar3MultipliesStats) {
     AshRaiderHero hero(1, UnitOwner::player);
     hero.upgradeToStar(2);
     hero.upgradeToStar(3);
-    // ★3 倍率 = 7.0x（相对 star1 基础）
+    // ★3 倍率 = 7.0x（相对 1 星基础）
     EXPECT_EQ(hero.starLevel(), 3);
     EXPECT_EQ(hero.attack(), static_cast<int>(62 * 7.0));
     EXPECT_EQ(hero.maxHp(), static_cast<int>(1600 * 7.0));
@@ -36,10 +36,11 @@ TEST(StarUpgradeTest, UpgradeToStar3MultipliesStats) {
 
 TEST(StarUpgradeTest, UpgradePreservesItemBonus) {
     AshRaiderHero hero(1, UnitOwner::player);
-    hero.equipItem(ItemType::kSword);  // +80 ATK
+    hero.equipItem(ItemType::kSword);  // +15% 物攻（基于基础值）
     hero.upgradeToStar(2);
-    // 升星后：基础 ATK = 62*3.0 = 186，加装备 +80 = 266
-    EXPECT_EQ(hero.attack(), static_cast<int>(62 * 3.0) + 80);
+    const int star2BaseAtk = static_cast<int>(62 * 3.0);
+    const int swordBonus = static_cast<int>(star2BaseAtk * 0.15 + 0.5);
+    EXPECT_EQ(hero.attack(), star2BaseAtk + swordBonus);
 }
 
 TEST(StarUpgradeTest, UpgradeResetsHpToFull) {
@@ -114,10 +115,10 @@ TEST(StarUpgradeTest, SixSameHeroMergeToStar3) {
 
     StarUpgrade::tryMergeAll(playerUnits, board, units, player);
 
-    // 6 张 → 先合成 1 张 star2 + 2 张 star1，再凑 3 张...
-    // 实际：3 张 star1 → 1 张 star2，剩 3 张 star1 → 1 张 star2，然后 2 张 star2 不够
-    // 6 张 star1 → 2 张 star2（不够3张 star2 合 star3）
-    // 除非已有 3*star1 = 1*star2，再有 3*star1 → 另 1*star2，共 2*star2 → 不够 star3
+    // 6 张 → 先合成 1 张 2 星 + 2 张 1 星，再凑 3 张...
+    // 实际：3 张 1 星 → 1 张 2 星，剩 3 张 1 星 → 1 张 2 星，然后 2 张 2 星不够
+    // 6 张 1 星 → 2 张 2 星（不够 3 张 2 星合 3 星）
+    // 除非已有 3×1 星 = 1×2 星，再有 3×1 星 → 另 1×2 星，共 2×2 星 → 不够 3 星
     // 期望：2 张 star2
     EXPECT_EQ(playerUnits.size(), static_cast<std::size_t>(2));
     for (std::size_t i = 0; i < playerUnits.size(); ++i) {
@@ -155,20 +156,20 @@ TEST(StarUpgradeTest, DifferentHeroesNoMerge) {
 
 TEST(StarUpgradeTest, EquipSwordAddsAtk) {
     AshRaiderHero hero(1, UnitOwner::player);
-    const int baseAtk = hero.attack();
+    const int baseAtk = hero.basePhysicalAtk();
     hero.equipItem(ItemType::kSword);
-    EXPECT_EQ(hero.attack(), baseAtk + 80);
+    const int swordBonus = static_cast<int>(baseAtk * 0.15 + 0.5);
+    EXPECT_EQ(hero.attack(), baseAtk + swordBonus);
     EXPECT_EQ(hero.equippedItem(), ItemType::kSword);
 }
 
 TEST(StarUpgradeTest, EquipArmorAddsPhysDef) {
-    // 锁甲重设计：提供物理防御而非生命值。
     AshRaiderHero hero(1, UnitOwner::player);
-    const int baseDef = hero.physicalDef();
+    const int baseDef = hero.basePhysicalDef();
     hero.equipItem(ItemType::kArmor);
-    EXPECT_EQ(hero.physicalDef(), baseDef + 50);
-    // maxHp 不受锁甲影响。
-    EXPECT_EQ(hero.maxHp(), hero.maxHp());
+    const int armorBonus = static_cast<int>(baseDef * 0.25 + 0.5);
+    EXPECT_EQ(hero.physicalDef(), baseDef + armorBonus);
+    EXPECT_EQ(hero.maxHp(), hero.baseMaxHp());
 }
 
 TEST(StarUpgradeTest, UnequipRemovesBonus) {
@@ -193,13 +194,12 @@ TEST(StarUpgradeTest, UnequipItemAtSpecificSlot) {
 }
 
 TEST(StarUpgradeTest, EquipReplacesExistingItem) {
-    // 魔纹环重设计：提供法术攻击，不影响物理攻击。
     AshRaiderHero hero(1, UnitOwner::player);
     const int basePhysAtk = hero.physicalAtk();
-    hero.equipItem(ItemType::kSword);  // +80 物理攻击
-    hero.equipItem(ItemType::kRing);   // 替换 sword：ring 提供 +60 法术攻击
-    EXPECT_EQ(hero.physicalAtk(), basePhysAtk);  // sword 已移除，物攻回到基础值
-    EXPECT_EQ(hero.magicAtk(), 60);              // ring 提供法术攻击
+    hero.equipItem(ItemType::kSword);
+    hero.equipItem(ItemType::kRing);
+    EXPECT_EQ(hero.physicalAtk(), basePhysAtk);
+    EXPECT_EQ(hero.magicAtk(), 0);
     EXPECT_EQ(hero.equippedItem(), ItemType::kRing);
 }
 
@@ -210,15 +210,73 @@ TEST(StarUpgradeTest, Star2HasTwoEquipSlots) {
 }
 
 TEST(StarUpgradeTest, Star2CanEquipTwoItems) {
-    // 铁剑(+80 物攻) + 疗愈符(+800 HP)：验证双槽装备各自独立生效。
     AshRaiderHero hero(1, UnitOwner::player);
     hero.upgradeToStar(2);
-    const int baseAtk = hero.physicalAtk();
-    const int baseHp = hero.maxHp();
+    const int baseAtk = hero.basePhysicalAtk();
+    const int baseHp = hero.baseMaxHp();
     hero.equipItem(ItemType::kSword);
     hero.equipItem(ItemType::kTalisman);
 
     EXPECT_EQ(hero.equippedItems().size(), static_cast<std::size_t>(2));
-    EXPECT_EQ(hero.physicalAtk(), baseAtk + 80);
-    EXPECT_EQ(hero.maxHp(), baseHp + 800);
+    EXPECT_EQ(hero.physicalAtk(), baseAtk + static_cast<int>(baseAtk * 0.15 + 0.5));
+    EXPECT_EQ(hero.maxHp(), baseHp + static_cast<int>(baseHp * 0.20 + 0.5));
+}
+
+TEST(StarUpgradeTest, EquipBonusDoesNotIncludeSynergy) {
+    AshRaiderHero hero(1, UnitOwner::player);
+    hero.equipItem(ItemType::kSword);
+    hero.setSynergyBuffs(70, 0, 0);
+    const int baseAtk = hero.basePhysicalAtk();
+    const int swordBonus = static_cast<int>(baseAtk * 0.15 + 0.5);
+    EXPECT_EQ(hero.physicalAtk(), baseAtk + swordBonus + 70);
+}
+
+TEST(StarUpgradeTest, SwiftGlovesIncreaseAttackSpeed) {
+    AshRaiderHero hero(1, UnitOwner::player);
+    EXPECT_EQ(hero.attackSpeed(), 100);
+    hero.equipItem(ItemType::kSwiftGloves);
+    EXPECT_EQ(hero.attackSpeed(), 115);
+}
+
+TEST(StarUpgradeTest, BlueCrystalReducesMaxMana) {
+    AshRaiderHero hero(1, UnitOwner::player);
+    EXPECT_EQ(hero.maxMana(), 75);
+    hero.equipItem(ItemType::kBlueCrystal);
+    EXPECT_EQ(hero.maxMana(), 45);
+}
+
+TEST(StarUpgradeTest, TakeAllEquippedItemsReturnsAndClears) {
+    AshRaiderHero hero(1, UnitOwner::player);
+    hero.equipItem(ItemType::kSword);
+    const std::vector<ItemType> items = hero.takeAllEquippedItems();
+    EXPECT_EQ(items.size(), static_cast<std::size_t>(1));
+    EXPECT_EQ(items.at(0), ItemType::kSword);
+    EXPECT_TRUE(hero.equippedItems().empty());
+    EXPECT_EQ(hero.attack(), hero.basePhysicalAtk());
+}
+
+TEST(StarUpgradeTest, MergeReturnsConsumedUnitEquipment) {
+    Board board(8, 8, 8);
+    Player player(1, 0, 100, 1, 8);
+    std::map<int, Unit*> units;
+    std::vector<Unit*> playerUnits;
+    std::vector<ItemType> returnedItems;
+
+    for (int i = 1; i <= 3; ++i) {
+        Unit* hero = new AshRaiderHero(i, UnitOwner::player);
+        if (i == 2) {
+            hero->equipItem(ItemType::kSword);
+        }
+        if (i == 3) {
+            hero->equipItem(ItemType::kArmor);
+        }
+        playerUnits.push_back(hero);
+        units[i] = hero;
+        player.addUnit(i);
+        board.placeOnBench(i, i - 1);
+    }
+
+    const bool merged = StarUpgrade::tryMergeAll(playerUnits, board, units, player, &returnedItems);
+    EXPECT_TRUE(merged);
+    EXPECT_EQ(returnedItems.size(), static_cast<std::size_t>(2));
 }

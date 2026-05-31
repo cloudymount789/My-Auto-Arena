@@ -25,6 +25,7 @@ bool GameFSM::canPlayerAct() const { return phase_ == GamePhase::kPrepare && !ga
 
 bool GameFSM::hasOutcome() const { return hasOutcome_; }
 
+// 流程：校验未 gameOver ──> 校验当前为准备阶段 ──> 切换到战斗阶段
 PhaseTransitionResult GameFSM::startBattle() {
     if (gameOver_) {
         return PhaseTransitionResult::kGameOver;
@@ -39,6 +40,7 @@ PhaseTransitionResult GameFSM::startBattle() {
     return PhaseTransitionResult::kSuccess;
 }
 
+// 流程：校验未 gameOver ──> 校验当前为战斗阶段 ──> 保存 outcome ──> 切换到结算阶段
 PhaseTransitionResult GameFSM::startSettlement(const RoundOutcome& outcome) {
     if (gameOver_) {
         return PhaseTransitionResult::kGameOver;
@@ -55,6 +57,7 @@ PhaseTransitionResult GameFSM::startSettlement(const RoundOutcome& outcome) {
     return PhaseTransitionResult::kSuccess;
 }
 
+// 流程：校验未 gameOver ──> 校验当前为结算阶段 ──> 切回准备阶段并 round+1
 PhaseTransitionResult GameFSM::startNextRound() {
     if (gameOver_) {
         return PhaseTransitionResult::kGameOver;

@@ -10,7 +10,7 @@ namespace ui {
 class UnitGraphicsItem : public QGraphicsObject {
     Q_OBJECT
 public:
-    // isEnemy: 敌方单位显示红色，玩家单位显示蓝色。
+    // isEnemy 为 true 时敌方单位显示红色，玩家单位显示蓝色。
     UnitGraphicsItem(int unitId, const QString& name, int hp, int maxHp, int mana, int maxMana, double tileSize,
                      bool isEnemy, int starLevel = 1);
 

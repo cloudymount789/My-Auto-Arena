@@ -6,7 +6,7 @@
 namespace my_auto_arena {
 namespace core {
 
-// 战士：近战爆发，HP 厚实，技能：对主目标造成 280 点爆发伤害。
+// 战士：近战爆发，生命值厚实，技能：对主目标造成 280 点爆发伤害。
 // 设计定位：前排冲锋，削减血量可让前期压力更明显。
 AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
     : PhysicalAttackUnit(id, "战士", owner, 1600, 62, 1, 75, UnitClass::kWarrior) {
@@ -16,6 +16,7 @@ AshRaiderHero::AshRaiderHero(int id, UnitOwner owner)
 
 AshRaiderHero::AshRaiderHero(const AshRaiderHero& other) : PhysicalAttackUnit(other) {}
 
+// 流程：校验主目标存活 ──> 造成缩放物理爆发伤害 ──> 清空法力
 void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -35,6 +36,7 @@ NightArcherHero::NightArcherHero(int id, UnitOwner owner)
 
 NightArcherHero::NightArcherHero(const NightArcherHero& other) : PhysicalAttackUnit(other) {}
 
+// 流程：校验主目标存活 ──> 造成缩放物理穿透伤害 ──> 清空法力
 void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -44,8 +46,8 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
     spendAllMana();
 }
 
-// 重甲战士：坦克近战，AOE 技能：对周围 4 相邻格敌方各造成 220 点伤害。
-// 设计定位：肉盾+AOE，近战羁绊为其解锁高ATK加成，但技能转换慢。
+// 重甲战士：坦克近战，范围伤害技能：对周围 4 相邻格敌方各造成 220 点伤害。
+// 设计定位：肉盾+范围伤害，近战羁绊为其解锁高物攻加成，但技能转换慢。
 CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
     : PhysicalAttackUnit(id, "重甲战士", owner, 2600, 48, 1, 90, UnitClass::kTank) {
     setBasePhysicalDef(50);   // 重甲肉盾，物防高
@@ -54,6 +56,7 @@ CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
 
 CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : PhysicalAttackUnit(other) {}
 
+// 流程：定位自身棋盘格 ──> 遍历四邻格 ──> 查 occupant 映射到 Unit ──> 对存活敌方造成范围物伤 ──> 清空法力
 void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
     const Position selfPos = board.findUnitOnBoard(id());
@@ -94,12 +97,13 @@ MistWitchHero::MistWitchHero(int id, UnitOwner owner)
 
 MistWitchHero::MistWitchHero(const MistWitchHero& other) : MagicalAttackUnit(other) {}
 
+// 流程：校验主目标存活 ──> 计算缩放法伤+装备法攻加成 ──> 对主目标造成法术伤害 ──> 清空法力
 void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
         // 技能伤害 = 基础爆发(随星级缩放) + 装备法术攻加成（魔纹环可直接提升技能威力）。
-        const int skillDmg = scaledSkillDamage(420) + equipmentBonusMagAtk();
+        const int skillDmg = scaledSkillDamage(420) + equipmentMagicAtkBonus();
         primaryTarget->takeMagicDamage(skillDmg);
     }
     spendAllMana();
@@ -117,6 +121,7 @@ BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
 
 BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : MagicalAttackUnit(other) {}
 
+// 流程：按 maxHp 算治疗量 ──> 遍历友方单位 ──> 若在棋盘上则校验射程 ──> 对范围内友方（含自身）治疗 ──> 清空法力
 void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
     // 每次技能治疗量 = 自身 maxHp 的 15%（含装备加成）。
@@ -148,7 +153,7 @@ void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units
     spendAllMana();
 }
 
-// 英雄工厂：根据 HeroType 创建堆分配的英雄实例。
+// 流程：按 HeroType 分支 ──> new 对应英雄子类 ──> 未知类型抛 invalid_argument
 Unit* createHero(HeroType type, int id, UnitOwner owner) {
     switch (type) {
         case HeroType::kWarrior: return new AshRaiderHero(id, owner);

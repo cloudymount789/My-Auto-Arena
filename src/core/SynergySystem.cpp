@@ -5,6 +5,7 @@
 namespace my_auto_arena {
 namespace core {
 
+// 流程：遍历棋盘格子 ──> 筛玩家单位且匹配职业 ──> 按星级加权累加点数
 int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
                                       const std::map<int, Unit*>& units) {
     // 按星级加权统计：★1=1点，★2=2点，★3=3点。
@@ -33,6 +34,7 @@ int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
     return count;
 }
 
+// 流程：统计各职业加权点数 ──> 计算 T1/T2 加成数值 ──> 遍历棋盘玩家单位 ──> setSynergyBuffs
 void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) {
     // 统计各职业在棋盘上的玩家单位数量。
     const int warriors = countClassOnBoard(UnitClass::kWarrior, board, units);
@@ -48,7 +50,7 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
     // 更高阈值对应更大奖励，鼓励专攻路线并深度投资升星。
     // ─────────────────────────────────────────────────────────────────
 
-    // 近战羁绊（战士+重甲战士）：T1(3)→ +70 ATK；T2(9)→ +180 ATK +1000 HP。
+    // 近战羁绊（战士+重甲战士）：T1(3)→ +70 物攻；T2(9)→ +180 物攻 +1000 生命。
     const int meleeCount = warriors + tanks;
     int meleeAtkBonus = 0;
     int meleeHpBonus  = 0;
@@ -118,6 +120,7 @@ void SynergySystem::clearBuffs(std::vector<Unit*>& playerUnits) {
     }
 }
 
+// 流程：统计各羁绊点数 ──> 按阈值生成 ActiveSynergy 描述 ──> 返回 UI 展示列表
 std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
                                                                const std::map<int, Unit*>& units) {
     std::vector<ActiveSynergy> result;

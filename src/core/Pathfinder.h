@@ -10,7 +10,7 @@ namespace core {
 
 class Unit;
 
-// 基于 BFS 的网格寻路：用于战斗中向可攻击格移动一步（不实现斜走）。
+// 基于广度优先搜索（BFS）的网格寻路：用于战斗中向可攻击格移动一步（不实现斜走）。
 class Pathfinder {
 public:
     // 若存在从 start 出发、经空格移动一步可达的“可普攻格”（与 targetPos 欧氏距离 <= attackRange），

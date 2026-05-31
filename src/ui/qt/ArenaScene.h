@@ -41,7 +41,7 @@ public:
     void syncAfterBattle(const std::map<int, core::Unit*>& unitsMap);
 
     // 根据本 tick 的战斗事件，在场景中生成攻击/技能特效图元。
-    // 近战/静态特效持续到下次 syncAfterBattle；飞行物通过内部定时器实时运动。
+    // 近战/静态特效持续到下次 syncAfterBattle()；飞行物通过内部定时器实时运动。
     void spawnVfx(const std::vector<core::BattleEvent>& events);
 
     // 控制拖拽交互是否响应（准备阶段 true，战斗/结算阶段 false）。
@@ -73,14 +73,14 @@ private:
     void clearTileHighlight();
     UnitGraphicsItem* createUnitItem(core::Unit* unit);
 
-    // 清除所有特效图元（静态+动态），停止 VFX 定时器。
+    // 清除所有特效图元（静态+动态），停止视觉特效定时器。
     void clearVfxItems();
     // 将棋盘格子坐标转换为场景像素中心点（与 ArenaScene 构造时的布局一致）。
     QPointF tilePixelCenter(int row, int col) const;
     // 在指定位置生成一个向外扩散并淡出的光环脉冲。
     void spawnPulse(QPointF center, QColor color, double startR, double endR, int duration);
 
-    // ── VFX 动画系统 ─────────────────────────────────────────────────────────
+    // ── 视觉特效动画系统 ─────────────────────────────────────────────────────────
     // 飞行物状态结构体：存储一个正在运动的抛射体的全部状态。
     struct VfxProjectile {
         QGraphicsEllipseItem* item;  // 表示飞行物的椭圆图元
@@ -96,7 +96,7 @@ private:
         QColor  impactColor;
     };
 
-    // 扩散光环结构体：技能命中或 AOE 时产生，从中心向外扩张并淡出。
+    // 扩散光环结构体：技能命中或范围伤害时产生，从中心向外扩张并淡出。
     struct VfxPulse {
         QGraphicsEllipseItem* item;
         QPointF center;
@@ -114,7 +114,7 @@ private:
     QTimer*                     vfxTimer_;           // 驱动飞行物/脉冲动画的定时器（30 ms）
 
 private slots:
-    void onVfxTick();  // vfxTimer_ 每 30ms 推进一次所有飞行物位置
+    void onVfxTick();  // vfxTimer_ 每 30 毫秒推进一次所有飞行物位置
 };
 
 }  // namespace ui

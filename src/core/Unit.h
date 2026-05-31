@@ -17,7 +17,7 @@ enum class UnitOwner { player, enemy };
 // 职业分类：用于羁绊系统判断单位类型。
 enum class UnitClass { kNone, kWarrior, kArcher, kTank, kMage, kHealer };
 
-// 单位战斗状态机，对应规格书 Section 3.1 中的 S = {Idle, Moving, Attacking, Casting, Dead}。
+// 单位战斗状态机，对应规格书第 3.1 节中的 S = {空闲, 移动, 攻击, 施法, 死亡}。
 enum class UnitState { kIdle, kMoving, kAttacking, kCasting, kDead };
 
 class Unit {
@@ -27,7 +27,7 @@ public:
          UnitClass unitClass = UnitClass::kNone);
     // 按课程要求显式定义拷贝构造函数，便于讲解对象复制语义。
     Unit(const Unit& other);
-    // 按 Rule of Three 要求配套定义拷贝赋值运算符。
+    // 按拷贝语义规范（拷贝构造、拷贝赋值、析构配套）要求定义拷贝赋值运算符。
     Unit& operator=(const Unit& other);
     virtual ~Unit() = default;
 
@@ -35,24 +35,30 @@ public:
     const std::string& name() const;
     UnitOwner owner() const;
     int hp() const;
-    // maxHp() = 基础最大生命值 + 装备加成 + 羁绊加成。
+    // 现有属性（基础 + 装备百分比加成 + 羁绊加成，四舍五入后的整数）。
     int maxHp() const;
     // attack() 保留作向后兼容，等价于 physicalAtk()。
     int attack() const;
-    // physicalAtk() = 基础物理攻击 + 装备物理攻加成 + 羁绊加成。
     int physicalAtk() const;
-    // magicAtk() = 基础法术攻击 + 装备法术攻加成。
     int magicAtk() const;
-    // physicalDef() = 基础物理防御 + 装备物防加成。
     int physicalDef() const;
-    // magicDef() = 基础法术防御 + 装备魔防加成。
     int magicDef() const;
+    int attackSpeed() const;
     int attackRange() const;
     int mana() const;
     int maxMana() const;
+
+    // 基础属性（升星直接修改这些字段；装备百分比仅基于此计算）。
+    int basePhysicalAtk() const;
+    int baseMagicAtk() const;
+    int baseMaxHp() const;
+    int basePhysicalDef() const;
+    int baseMagicDef() const;
+    int baseMaxMana() const;
+    int baseAttackSpeed() const;
     bool isAlive() const;
 
-    // Phase 3 新增：职业、星级、装备 getter。
+    // 第三阶段新增：职业、星级、装备访问接口。
     UnitClass unitClass() const;
     int starLevel() const;
     const std::vector<ItemType>& equippedItems() const;
@@ -64,31 +70,33 @@ public:
     void setState(UnitState s);
 
     void takeDamage(int amount);
-    // 物理伤害：net = max(1, rawDmg - physicalDef())，保底 1 点。
+    // 物理伤害：净伤害 = max(1, 原始伤害 - physicalDef())，保底 1 点。
     void takePhysicalDamage(int rawDmg);
-    // 法术伤害：net = max(1, rawDmg - magicDef())，保底 1 点。
+    // 法术伤害：净伤害 = max(1, 原始伤害 - magicDef())，保底 1 点。
     void takeMagicDamage(int rawDmg);
     void gainMana(int amount);
     // heal() 上限为 maxHp()（含羁绊加成）。
     void heal(int amount);
-    // resetToFull() 将 hp_ 重置为 maxHp_+bonusMaxHp_，蓝量归零。
+    // resetToFull() 将 hp_ 重置为 maxHp()，蓝量归零。
     void resetToFull();
 
-    // 装备管理：基础属性不被装备直接改写；最终属性由 getter 叠加计算。
+    // 装备管理：基础属性不被装备直接改写；最终属性由访问接口叠加计算。
     void equipItem(ItemType item);
     void unequipItem();
     // 卸下指定槽位装备（0 为第一个槽位）；越界时不执行。
     void unequipItemAt(int slotIndex);
+    // 卸下全部装备并返回装备列表（出售/合并消耗单位时使用）。
+    std::vector<ItemType> takeAllEquippedItems();
 
     // 羁绊 BUFF：每轮战斗开始前设置，结束后清除。
     // bonusAtk 加到物理攻击；bonusMagAtk 加到法术攻击（法师羁绊专用）。
     void setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp);
     void clearSynergyBuffs();
 
-    // 升星：直接提升基础属性（star2=×3.0，star3=×7.0），装备加成由 getter 统一叠加。
+    // 升星：直接提升基础属性（★2=×3.0，★3=×7.0），装备加成由访问接口统一叠加。
     void upgradeToStar(int newStarLevel);
 
-    // 按星级缩放技能基础伤害/治疗量：★1=×1.0，★2=×3.0，★3=×7.0（与 ATK 倍率一致）。
+    // 按星级缩放技能基础伤害/治疗量：★1=×1.0，★2=×3.0，★3=×7.0（与物攻倍率一致）。
     int scaledSkillDamage(int baseDamage) const;
 
     // 法力满时由战斗引擎调用：多态技能入口；默认仅清空法力。
@@ -107,8 +115,8 @@ protected:
     void setBaseMagicAtk(int v);
     void setBasePhysicalDef(int v);
     void setBaseMagicDef(int v);
-    // 装备法术攻击加成（供法师子类在技能中读取）。
-    int equipmentBonusMagAtk() const;
+    // 装备法术攻击加成（仅基于基础法攻的百分比，不含羁绊）。
+    int equipmentMagicAtkBonus() const;
 
 private:
     int id_;
@@ -137,11 +145,26 @@ private:
     int star1MagDef_;        // 原始星级1法术防御（升星乘算用）
     UnitState state_;        // 战斗状态机当前状态，每 tick 由 BattleEngine 更新
 
+    // 现有属性缓存（recalculateCurrentStats 更新，GUI 与战斗读取）。
+    int currentPhysicalAtk_;
+    int currentMagicAtk_;
+    int currentMaxHp_;
+    int currentPhysicalDef_;
+    int currentMagicDef_;
+    int currentMaxMana_;
+    int currentAttackSpeed_;
+
+    static int roundStat(double value);
     int equipmentBonusPhysAtk() const;
+    int equipmentBonusMagAtk() const;
     int equipmentBonusPhysDef() const;
     int equipmentBonusMagDef() const;
     int equipmentBonusMaxHp() const;
+    int equipmentBonusAttackSpeed() const;
+    int equipmentBonusMaxManaFlat() const;
+    void recalculateCurrentStats();
     void clampHpToCurrentMax();
+    void clampManaToCurrentMax();
 };
 
 // ─────────────────────────────────────────────────────────────────────────────

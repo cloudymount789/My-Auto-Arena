@@ -50,6 +50,9 @@ private:
     RoundOutcome outcome_;
     int defeatHpPenalty_;
     std::vector<BattleEvent> tickEvents_;  // 本 tick 产生的事件，每 tick 开始时清空
+    std::map<int, double> attackGauge_;    // 普攻攻速蓄力（100=每 tick 一次）
+
+    bool tryNormalAttack(Unit* attacker, Unit* target, Position attackerPos, Position targetPos);
 
     Unit* selectTarget(const Unit& attacker) const;
     bool inRange(const Unit& attacker, Position attackerPos, Position targetPos) const;

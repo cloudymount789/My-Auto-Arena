@@ -20,6 +20,7 @@
 namespace my_auto_arena {
 namespace ui {
 
+// 流程：创建开局英雄并放备战区 ──> 搭建场景/面板/控制栏 ──> 连接信号 ──> 初始化显示
 QtMainWindow::QtMainWindow(QWidget* parent)
     : QMainWindow(parent),
       board_(8, 8, 8),
@@ -203,6 +204,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     statusBar()->showMessage("将英雄拖入下半场，点击「开始战斗」");
 }
 
+// 流程：停战斗定时器 ──> 释放战斗引擎 ──> delete 所有单位指针
 QtMainWindow::~QtMainWindow() {
     if (battleTimer_ != nullptr) {
         battleTimer_->stop();
@@ -233,6 +235,7 @@ void QtMainWindow::onUnitSelected(int unitId) {
     updateItemsDisplay();  // 选中单位后刷新道具按钮的可用状态
 }
 
+// 流程：按 DragResult 类型 ──> 更新状态栏提示 ──> 刷新状态与羁绊显示
 void QtMainWindow::onDragResult(core::DragResult result) {
     if (result == core::DragResult::kSuccess) {
         statusBar()->showMessage("放置成功", 1500);
@@ -253,6 +256,7 @@ void QtMainWindow::onDragResult(core::DragResult result) {
     updateSynergyDisplay();  // 拖拽后立即刷新备战区羁绊显示
 }
 
+// 流程：校验可操作与棋盘人口 ──> 切 FSM 到战斗 ──> 生成敌方 ──> 施加羁绊 ──> 启动 BattleEngine 与定时器
 void QtMainWindow::onStartBattle() {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("当前阶段不可操作", 1500);
@@ -290,6 +294,7 @@ void QtMainWindow::onStartBattle() {
     battleTimer_->start();
 }
 
+// 流程：推进若干 tick ──> 同步场景与特效 ──> 战斗结束则 doSettlement
 void QtMainWindow::onBattleTick() {
     if (battleEngine_ == nullptr) {
         battleTimer_->stop();
@@ -298,7 +303,7 @@ void QtMainWindow::onBattleTick() {
     for (int i = 0; i < kTicksPerStep && !battleEngine_->isFinished(); ++i) {
         battleEngine_->tick();
     }
-    // syncAfterBattle 先清除上一 tick 特效并更新单位位置，之后再叠加本 tick 新特效。
+    // syncAfterBattle() 先清除上一 tick 特效并更新单位位置，之后再叠加本 tick 新特效。
     scene_->syncAfterBattle(unitsMap_);
     scene_->spawnVfx(battleEngine_->lastTickEvents());
     statusBar()->showMessage(QString("⚔ 战斗中... Tick %1").arg(battleEngine_->tickCount()));
@@ -309,6 +314,8 @@ void QtMainWindow::onBattleTick() {
     }
 }
 
+// 流程：取战斗结果 ──> 结算金币/扣血/掉落 ──> 清理敌方 ──> 清除羁绊 ──> 复活玩家英雄回备战区
+//       ──> 尝试升星 ──> 切 FSM 到结算 ──> 判断是否 gameOver
 void QtMainWindow::doSettlement() {
     if (battleEngine_ == nullptr) {
         return;
@@ -325,7 +332,7 @@ void QtMainWindow::doSettlement() {
     }
     spawnedEnemies_.clear();
 
-    // 结算金币 / 玩家 HP。
+    // 结算金币 / 玩家生命值。
     if (outcome.playerWon) {
         outcome.goldReward = currentLevelCfg_.winGoldReward;
         player_.setGold(player_.gold() + outcome.goldReward);
@@ -333,12 +340,13 @@ void QtMainWindow::doSettlement() {
 
         // 胜利时随机给予一件道具（轮次 >= 2 才开始掉落）。
         if (fsm_.currentRound() >= 2) {
-            const core::ItemType drops[5] = {
-                core::ItemType::kSword,    core::ItemType::kArmor,
-                core::ItemType::kRing,     core::ItemType::kTalisman,
-                core::ItemType::kRunicShield
+            const core::ItemType drops[7] = {
+                core::ItemType::kSword,        core::ItemType::kArmor,
+                core::ItemType::kRing,         core::ItemType::kTalisman,
+                core::ItemType::kRunicShield,  core::ItemType::kSwiftGloves,
+                core::ItemType::kBlueCrystal
             };
-            pendingItems_.push_back(drops[std::rand() % 5]);
+            pendingItems_.push_back(drops[std::rand() % 7]);
         }
     } else {
         outcome.hpPenalty = currentLevelCfg_.onLosePlayerHpDamage;
@@ -394,7 +402,7 @@ void QtMainWindow::doSettlement() {
     battleEngine_ = nullptr;
 
     // 检查升星（复活后）。
-    core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
+    core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_, &pendingItems_);
 
     updateShopDisplay();
     updateSynergyDisplay();
@@ -426,6 +434,7 @@ void QtMainWindow::doSettlement() {
     nextRoundBtn_->setEnabled(true);
 }
 
+// 流程：校验阶段 ──> FSM 进入下一轮 ──> 刷新商店 ──> 恢复拖拽与按钮状态
 void QtMainWindow::onNextRound() {
     if (fsm_.currentPhase() != core::GamePhase::kSettlement) {
         return;
@@ -441,6 +450,7 @@ void QtMainWindow::onNextRound() {
     statusBar()->showMessage(QString("第 %1 轮准备中，请布置英雄阵型").arg(fsm_.currentRound()));
 }
 
+// 流程：校验阶段与备战区空位 ──> 商店购买 ──> 放备战区 ──> 注册单位 ──> 尝试升星合并
 void QtMainWindow::onHeroPurchased(int slotIndex) {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法购买英雄", 1500);
@@ -477,7 +487,8 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
     scene_->rebuild();
 
     // 检查升星（可能删除 hero 指针，此后不得再访问 hero）。
-    const bool merged = core::StarUpgrade::tryMergeAll(playerUnits_, board_, unitsMap_, player_);
+    const bool merged = core::StarUpgrade::tryMergeAll(
+        playerUnits_, board_, unitsMap_, player_, &pendingItems_);
     scene_->syncAfterBattle(unitsMap_);
     scene_->rebuild();
 
@@ -507,6 +518,7 @@ void QtMainWindow::onShopRefresh() {
     updateShopDisplay();
 }
 
+// 流程：查找玩家单位 ──> 加金币 ──> 清棋盘/备战区占位 ──> 从列表与 map 移除 ──> delete
 void QtMainWindow::onSellUnit(int unitId) {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法出售英雄", 1500);
@@ -555,15 +567,21 @@ void QtMainWindow::onSellUnit(int unitId) {
     scene_->syncAfterBattle(unitsMap_);
     scene_->rebuild();
     infoPanel_->setUnit(nullptr);
-    currentSelectedUnitId_ = -1;  // 已出售，清除选中状态
+    currentSelectedUnitId_ = -1;
 
+    const std::vector<core::ItemType> returnedItems = unit->takeAllEquippedItems();
+    for (std::size_t i = 0; i < returnedItems.size(); ++i) {
+        pendingItems_.push_back(returnedItems.at(i));
+    }
     delete unit;
 
     updateStatusPanel();
     updateShopDisplay();
+    updateItemsDisplay();
     statusBar()->showMessage(QString("出售英雄，获得 %1 金币").arg(gain), 1500);
 }
 
+// 流程：校验阶段与金币 ──> 扣费并 populationCap+1 ──> 刷新状态栏
 void QtMainWindow::onLevelUp() {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法升级", 1500);
@@ -599,6 +617,7 @@ void QtMainWindow::onSaveGame() {
     }
 }
 
+// 流程：选档路径 ──> SaveManager::load ──> 重建场景与各项 UI 显示
 void QtMainWindow::onLoadGame() {
     const QString filepath = QFileDialog::getOpenFileName(
         this, "读取存档", "", "文本文件 (*.txt)");
@@ -641,6 +660,7 @@ bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {
     return false;
 }
 
+// 流程：刷新阶段/轮次/HP/金币/人口标签 ──> 更新升级人口按钮文案与可用性
 void QtMainWindow::updateStatusPanel() {
     const QString phaseText =
         (fsm_.currentPhase() == core::GamePhase::kPrepare)  ? "准备阶段"
@@ -666,6 +686,7 @@ void QtMainWindow::updateStatusPanel() {
     }
 }
 
+// 流程：查询激活羁绊 ──> 拼接名称/点数/效果描述 ──> 更新 synergyLabel_
 void QtMainWindow::updateSynergyDisplay() {
     if (synergyLabel_ == nullptr) return;
     const std::vector<core::ActiveSynergy> synergies =
@@ -690,6 +711,7 @@ void QtMainWindow::updateShopDisplay() {
     }
 }
 
+// 流程：清空旧道具按钮 ──> 无道具则占位 ──> 为每件 pending 创建装备按钮并绑定
 void QtMainWindow::updateItemsDisplay() {
     if (itemsLayout_ == nullptr) {
         return;
@@ -730,16 +752,21 @@ void QtMainWindow::updateItemsDisplay() {
             " border-radius: 3px; padding: 3px 6px; }"
             "QPushButton:disabled { background-color: #1E1E2E; color: #6C7086; }");
         btn->setEnabled(canEquip);
-        btn->setToolTip(QString("物攻+%1  法攻+%2  物防+%3  魔防+%4  HP+%5")
-            .arg(def.bonusPhysAtk).arg(def.bonusMagAtk)
-            .arg(def.bonusPhysDefense).arg(def.bonusMagDefense)
-            .arg(def.bonusMaxHp));
+        btn->setToolTip(QString("物攻+%1%%  法攻+%2%%  物防+%3%%  魔防+%4%%  生命+%5%%  攻速+%6%%  法力%7")
+            .arg(def.bonusPhysAtkPercent).arg(def.bonusMagAtkPercent)
+            .arg(def.bonusPhysDefensePercent).arg(def.bonusMagDefensePercent)
+            .arg(def.bonusMaxHpPercent).arg(def.bonusAttackSpeedPercent)
+            .arg(def.bonusMaxManaFlat == 0
+                     ? QString::fromUtf8("不变")
+                     : QString("%1%2").arg(def.bonusMaxManaFlat > 0 ? "+" : "")
+                           .arg(def.bonusMaxManaFlat)));
         btn->setProperty("itemIndex", i);
         connect(btn, SIGNAL(clicked()), this, SLOT(onEquipItem()));
         itemsLayout_->addWidget(btn);
     }
 }
 
+// 流程：取 pending 道具 ──> 校验选中英雄与槽位 ──> equipItem ──> 从 pending 移除并刷新 UI
 void QtMainWindow::onEquipItem() {
     QPushButton* btn = qobject_cast<QPushButton*>(sender());
     if (btn == nullptr) {
@@ -786,6 +813,7 @@ void QtMainWindow::onEquipItem() {
         2500);
 }
 
+// 流程：校验阶段与槽位 ──> unequipItemAt ──> 道具归还 pendingItems_ ──> 刷新面板
 void QtMainWindow::onUnequipItem(int unitId, int slotIndex) {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法卸除装备", 1500);

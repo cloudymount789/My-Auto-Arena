@@ -14,6 +14,7 @@ int requirePositive(int value, const char* message) {
 }
 }  // namespace
 
+// 流程：校验尺寸 ──> 按 row×col 创建 Tile 网格 ──> 初始化备战区槽位
 Board::Board(int rows, int cols, int benchSize)
     : rows_(requirePositive(rows, "Rows must be positive.")),
       cols_(requirePositive(cols, "Cols must be positive.")),
@@ -79,6 +80,7 @@ int Board::occupantOnBoard(Position position) const {
     return tile.occupantId();
 }
 
+// 流程：双层循环扫描棋盘 ──> 匹配 unitId ──> 返回坐标（未找到则 {-1,-1}）
 Position Board::findUnitOnBoard(int unitId) const {
     for (int row = 0; row < rows_; ++row) {
         for (int col = 0; col < cols_; ++col) {

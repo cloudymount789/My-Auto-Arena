@@ -15,13 +15,15 @@ namespace core {
 class StarUpgrade {
 public:
     // 遍历玩家所有单位，发现 3 合 1 条件则执行合并，返回是否发生过合并。
+    // returnedItems：被合并消耗的单位所穿戴装备会追加到此列表（供 GUI 归还装备栏）。
     static bool tryMergeAll(std::vector<Unit*>& playerUnits, Board& board,
-                             std::map<int, Unit*>& unitsMap, Player& player);
+                             std::map<int, Unit*>& unitsMap, Player& player,
+                             std::vector<ItemType>* returnedItems = nullptr);
 
 private:
-    // 从玩家单位表、棋盘/备战区、全局单位表中移除指定单位并释放内存。
     static void removeUnit(int unitId, std::vector<Unit*>& playerUnits,
-                           Board& board, std::map<int, Unit*>& unitsMap, Player& player);
+                           Board& board, std::map<int, Unit*>& unitsMap, Player& player,
+                           std::vector<ItemType>* returnedItems = nullptr);
 };
 
 }  // namespace core

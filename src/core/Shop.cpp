@@ -60,6 +60,7 @@ int Shop::sellValue(int starLevel) {
     return 1;
 }
 
+// 流程：从 5 种英雄类型随机抽取 ──> 填入各槽位 ──> 重置 sold 为未售出
 void Shop::randomizeSlots() {
     // 随机选取 5 个英雄类型（允许重复，体现卡池机制）。
     const HeroType allTypes[5] = {

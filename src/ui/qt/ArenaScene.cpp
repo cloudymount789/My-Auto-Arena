@@ -17,6 +17,8 @@
 namespace my_auto_arena {
 namespace ui {
 
+// 流程：设置场景尺寸 ──> 绘制棋盘格子 ──> 绘制备战区格子 ──> 同步已有单位图元 ──> 启动 VFX 定时器
+//       （初始化整场 QGraphicsScene 布局与交互基础）
 ArenaScene::ArenaScene(core::Board& board, core::Player& player, std::map<int, core::Unit*>& unitsMap,
                        QObject* parent)
     : QGraphicsScene(parent),
@@ -90,6 +92,8 @@ void ArenaScene::addUnitItem(core::Unit* unit) {
     item->show();
 }
 
+// 流程：停止 VFX 定时器 ──> 删除静态特效图元 ──> 删除飞行物 ──> 删除脉冲环
+//       （战斗 tick 切换或战后同步前清空所有瞬时视觉元素）
 void ArenaScene::clearVfxItems() {
     if (vfxTimer_ != nullptr && vfxTimer_->isActive()) {
         vfxTimer_->stop();
@@ -122,7 +126,7 @@ QPointF ArenaScene::tilePixelCenter(int row, int col) const {
     return QPointF(cx, cy);
 }
 
-// ── VFX 颜色规则 ──────────────────────────────────────────────────────────────
+// ── 视觉特效颜色规则 ──────────────────────────────────────────────────────────────
 // 玩家普通攻击：暖色系 (弓手=金黄, 法师=蓝紫)
 // 敌方普通攻击：冷色系 (弓手=橙红, 法师=毒绿)
 // 玩家技能：鲜艳职业色
@@ -163,7 +167,7 @@ static QColor skillColor(core::UnitClass cls, core::UnitOwner owner) {
 }
 
 // 生成一个飞行物并添加到场景。
-// widthScale>1 表示沿飞行方向拉伸（箭矢效果），angle=飞行方向角度。
+// 宽度缩放 widthScale>1 表示沿飞行方向拉伸（箭矢效果），angle 为飞行方向角度（度）。
 static QGraphicsEllipseItem* makeProjectileItem(QColor color, double r, double widthScale, double angle,
                                                  QGraphicsScene* scene) {
     // 宽度按比例拉伸，原点在中心。
@@ -177,7 +181,8 @@ static QGraphicsEllipseItem* makeProjectileItem(QColor color, double r, double w
     return item;
 }
 
-// 辅助：添加扩散脉冲环到 activePulses_（供技能/命中时调用）
+// 流程：创建椭圆环图元 ──> 加入场景 ──> 填充脉冲参数并加入 activePulses_
+//       （供技能施法/命中时生成扩散动画）
 void ArenaScene::spawnPulse(QPointF center, QColor color, double startR, double endR, int duration) {
     QGraphicsEllipseItem* item = new QGraphicsEllipseItem(center.x() - startR, center.y() - startR,
                                                           startR * 2, startR * 2);
@@ -198,6 +203,8 @@ void ArenaScene::spawnPulse(QPointF center, QColor color, double startR, double 
     activePulses_.push_back(pulse);
 }
 
+// 流程：遍历战斗事件 ──> 校验坐标并计算起止像素 ──> 按攻击/技能类型分支生成特效 ──> 按需启动 VFX 定时器
+//       （将近战环、远程弹体、技能脉冲等映射到场景图元）
 void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
     for (std::size_t i = 0; i < events.size(); ++i) {
         const core::BattleEvent& ev = events.at(i);
@@ -272,7 +279,7 @@ void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
             spawnPulse(src, skillCol, 8.0,  44.0, 300);
             spawnPulse(src, skillCol, 14.0, 52.0, 420);
 
-            // 坦克技能：AOE 冲击圈 + 脉冲环（无弹体）
+            // 坦克技能：范围伤害冲击圈 + 脉冲环（无弹体）
             if (ev.sourceClass == core::UnitClass::kTank) {
                 const QColor aoeCol = isEnemy ? QColor(140, 60, 0, 180) : QColor(255, 140, 0, 180);
                 spawnPulse(src, aoeCol, 20.0, 80.0, 500);
@@ -317,6 +324,8 @@ void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
     }
 }
 
+// 流程：推进飞行物插值位移 ──> 命中时生成闪光与爆炸环 ──> 推进脉冲环半径与透明度 ──> 清理已完成项并决定是否停表
+//       （每 30ms 驱动所有活跃 VFX 动画）
 void ArenaScene::onVfxTick() {
     const int delta = (vfxTimer_ != nullptr) ? vfxTimer_->interval() : 30;
     bool anyAlive = false;
@@ -414,6 +423,8 @@ void ArenaScene::onVfxTick() {
     }
 }
 
+// 流程：清除上一 tick 特效 ──> 移除阵亡单位图元 ──> 刷新幸存单位血蓝与星级 ──> 同步位置
+//       （战斗每 tick 后使 UI 与最新 unitsMap 对齐）
 void ArenaScene::syncAfterBattle(const std::map<int, core::Unit*>& unitsMap) {
     clearVfxItems();  // 先清除上一 tick 的特效
     // 移除不再存在于 unitsMap 的图元（战斗中阵亡的单位）。
@@ -455,6 +466,8 @@ const core::Unit* ArenaScene::unitById(int unitId) const {
 
 void ArenaScene::rebuild() { syncUnitPositions(); }
 
+// 流程：像素坐标转棋盘/备战区位置 ──> 遍历格子匹配目标 ──> 高亮或清除高亮
+//       （拖拽移动过程中实时反馈可放置格）
 void ArenaScene::onDragMoved(int, QPointF scenePos) {
     if (!dragEnabled_) {
         return;
@@ -487,6 +500,8 @@ void ArenaScene::onDragMoved(int, QPointF scenePos) {
     clearTileHighlight();
 }
 
+// 流程：校验拖拽开关与单位 ──> 定位源位置 ──> 解析释放坐标 ──> 执行拖放逻辑 ──> 同步或回弹并上报结果
+//       （拖拽结束时的完整放置/交换/失败处理）
 void ArenaScene::onDragFinished(int unitId, QPointF releaseScenePos) {
     if (!dragEnabled_) {
         std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.find(unitId);
@@ -531,6 +546,8 @@ void ArenaScene::onDragFinished(int unitId, QPointF releaseScenePos) {
 
 void ArenaScene::onUnitClicked(int unitId) { emit unitSelected(unitId); }
 
+// 流程：扫描棋盘占用 ──> 未找到则扫描备战区 ──> 返回对应 DragLocation
+//       （根据 unitId 反查单位当前所在区域）
 core::DragLocation ArenaScene::locateUnit(int unitId) const {
     for (int row = 0; row < board_.rows(); ++row) {
         for (int col = 0; col < board_.cols(); ++col) {
@@ -547,6 +564,8 @@ core::DragLocation ArenaScene::locateUnit(int unitId) const {
     return core::DragLocation::fromBench(-1);
 }
 
+// 流程：遍历所有单位图元 ──> 定位逻辑坐标 ──> 无效则隐藏，有效则居中摆放并显示
+//       （拖放、购买、战后等场景变化后统一刷新像素位置）
 void ArenaScene::syncUnitPositions() {
     for (std::map<int, UnitGraphicsItem*>::iterator it = unitItems_.begin(); it != unitItems_.end(); ++it) {
         const int unitId = it->first;

@@ -41,7 +41,7 @@ TEST(EnemySpawnerTest, InvalidRoundThrowsOutOfRange) {
     int nextId = 100;
     // round=7 是无尽关的第一关，应正常产出敌方单位，不抛出异常。
     EXPECT_NO_THROW(spawner.spawnRound(7, board, nextId));
-    // round=0 应被 clamp 为 round=1，同样不抛出。
+    // round=0 应被限制为 round=1，同样不抛出。
     int nextId2 = 200;
     EXPECT_NO_THROW(spawner.spawnRound(0, board, nextId2));
 }

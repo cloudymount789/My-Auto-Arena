@@ -3,8 +3,10 @@
 namespace my_auto_arena {
 namespace core {
 
+// 流程：循环扫描玩家单位 ──> 找 3 张同名同星 ──> base 升星 ──> 移除另外 2 张 ──> 直到无合并
 bool StarUpgrade::tryMergeAll(std::vector<Unit*>& playerUnits, Board& board,
-                               std::map<int, Unit*>& unitsMap, Player& player) {
+                               std::map<int, Unit*>& unitsMap, Player& player,
+                               std::vector<ItemType>* returnedItems) {
     bool anyMerge = false;
     bool merged = true;
 
@@ -36,8 +38,8 @@ bool StarUpgrade::tryMergeAll(std::vector<Unit*>& playerUnits, Board& board,
 
             // 找到 3 张同卡，将 base 升星并移除另外 2 张。
             base->upgradeToStar(base->starLevel() + 1);
-            removeUnit(sameIds.at(0), playerUnits, board, unitsMap, player);
-            removeUnit(sameIds.at(1), playerUnits, board, unitsMap, player);
+            removeUnit(sameIds.at(0), playerUnits, board, unitsMap, player, returnedItems);
+            removeUnit(sameIds.at(1), playerUnits, board, unitsMap, player, returnedItems);
 
             merged = true;
             anyMerge = true;
@@ -49,8 +51,10 @@ bool StarUpgrade::tryMergeAll(std::vector<Unit*>& playerUnits, Board& board,
     return anyMerge;
 }
 
+// 流程：清空棋盘/备战区占位 ──> 从 playerUnits delete ──> 从 unitsMap/player 移除记录
 void StarUpgrade::removeUnit(int unitId, std::vector<Unit*>& playerUnits,
-                              Board& board, std::map<int, Unit*>& unitsMap, Player& player) {
+                              Board& board, std::map<int, Unit*>& unitsMap, Player& player,
+                              std::vector<ItemType>* returnedItems) {
     // 从棋盘上移除占位。
     const Position pos = board.findUnitOnBoard(unitId);
     if (board.inBounds(pos)) {
@@ -66,7 +70,14 @@ void StarUpgrade::removeUnit(int unitId, std::vector<Unit*>& playerUnits,
     // 从玩家单位列表中移除并释放内存。
     for (std::size_t i = 0; i < playerUnits.size(); ++i) {
         if (playerUnits.at(i) != nullptr && playerUnits.at(i)->id() == unitId) {
-            delete playerUnits.at(i);
+            Unit* unit = playerUnits.at(i);
+            if (returnedItems != nullptr) {
+                const std::vector<ItemType> items = unit->takeAllEquippedItems();
+                for (std::size_t j = 0; j < items.size(); ++j) {
+                    returnedItems->push_back(items.at(j));
+                }
+            }
+            delete unit;
             playerUnits.at(i) = nullptr;
             playerUnits.erase(playerUnits.begin() + static_cast<int>(i));
             break;

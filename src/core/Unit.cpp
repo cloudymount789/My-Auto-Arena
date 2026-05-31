@@ -9,6 +9,12 @@
 namespace my_auto_arena {
 namespace core {
 
+namespace {
+
+const int kBaseAttackSpeed = 100;
+
+}  // namespace
+
 Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana,
            UnitClass unitClass)
     : id_(id),
@@ -34,11 +40,19 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       baseMagicDef_(0),
       star1PhysDef_(0),
       star1MagDef_(0),
-      state_(UnitState::kIdle) {
-    // 允许 attack == 0，用于后续可能的纯辅助类单位。
+      state_(UnitState::kIdle),
+      currentPhysicalAtk_(attack),
+      currentMagicAtk_(0),
+      currentMaxHp_(maxHp),
+      currentPhysicalDef_(0),
+      currentMagicDef_(0),
+      currentMaxMana_(maxMana),
+      currentAttackSpeed_(kBaseAttackSpeed) {
     if (id < 0 || maxHp <= 0 || attack < 0 || attackRange <= 0 || maxMana <= 0) {
         throw std::invalid_argument("Invalid unit stats.");
     }
+    recalculateCurrentStats();
+    hp_ = currentMaxHp_;
 }
 
 Unit::Unit(const Unit& other)
@@ -65,7 +79,14 @@ Unit::Unit(const Unit& other)
       baseMagicDef_(other.baseMagicDef_),
       star1PhysDef_(other.star1PhysDef_),
       star1MagDef_(other.star1MagDef_),
-      state_(other.state_) {}
+      state_(other.state_),
+      currentPhysicalAtk_(other.currentPhysicalAtk_),
+      currentMagicAtk_(other.currentMagicAtk_),
+      currentMaxHp_(other.currentMaxHp_),
+      currentPhysicalDef_(other.currentPhysicalDef_),
+      currentMagicDef_(other.currentMagicDef_),
+      currentMaxMana_(other.currentMaxMana_),
+      currentAttackSpeed_(other.currentAttackSpeed_) {}
 
 Unit& Unit::operator=(const Unit& other) {
     if (this == &other) {
@@ -95,29 +116,43 @@ Unit& Unit::operator=(const Unit& other) {
     star1PhysDef_ = other.star1PhysDef_;
     star1MagDef_ = other.star1MagDef_;
     state_ = other.state_;
+    currentPhysicalAtk_ = other.currentPhysicalAtk_;
+    currentMagicAtk_ = other.currentMagicAtk_;
+    currentMaxHp_ = other.currentMaxHp_;
+    currentPhysicalDef_ = other.currentPhysicalDef_;
+    currentMagicDef_ = other.currentMagicDef_;
+    currentMaxMana_ = other.currentMaxMana_;
+    currentAttackSpeed_ = other.currentAttackSpeed_;
     return *this;
+}
+
+int Unit::roundStat(double value) {
+    return static_cast<int>(value + (value >= 0.0 ? 0.5 : -0.5));
 }
 
 int Unit::id() const { return id_; }
 const std::string& Unit::name() const { return name_; }
 UnitOwner Unit::owner() const { return owner_; }
 int Unit::hp() const { return hp_; }
-// maxHp() 返回含装备与羁绊加成的有效最大血量。
-int Unit::maxHp() const { return baseMaxHp_ + equipmentBonusMaxHp() + bonusMaxHp_; }
-// attack() 向后兼容，等价于 physicalAtk()。
+int Unit::maxHp() const { return currentMaxHp_; }
 int Unit::attack() const { return physicalAtk(); }
-// physicalAtk() = 基础物理攻击 + 装备物理攻加成 + 羁绊加成。
-int Unit::physicalAtk() const { return baseAttack_ + equipmentBonusPhysAtk() + bonusAtk_; }
-// magicAtk() = 基础法术攻击 + 装备法术攻加成 + 羁绊法术加成（法师专用）。
-int Unit::magicAtk() const { return baseMagicAtk_ + equipmentBonusMagAtk() + bonusMagAtk_; }
-// physicalDef() = 基础物理防御 + 装备物防加成。
-int Unit::physicalDef() const { return basePhysicalDef_ + equipmentBonusPhysDef(); }
-// magicDef() = 基础法术防御 + 装备魔防加成。
-int Unit::magicDef() const { return baseMagicDef_ + equipmentBonusMagDef(); }
+int Unit::physicalAtk() const { return currentPhysicalAtk_; }
+int Unit::magicAtk() const { return currentMagicAtk_; }
+int Unit::physicalDef() const { return currentPhysicalDef_; }
+int Unit::magicDef() const { return currentMagicDef_; }
+int Unit::attackSpeed() const { return currentAttackSpeed_; }
 int Unit::attackRange() const { return attackRange_; }
 int Unit::mana() const { return mana_; }
-int Unit::maxMana() const { return maxMana_; }
+int Unit::maxMana() const { return currentMaxMana_; }
 bool Unit::isAlive() const { return hp_ > 0; }
+
+int Unit::basePhysicalAtk() const { return baseAttack_; }
+int Unit::baseMagicAtk() const { return baseMagicAtk_; }
+int Unit::baseMaxHp() const { return baseMaxHp_; }
+int Unit::basePhysicalDef() const { return basePhysicalDef_; }
+int Unit::baseMagicDef() const { return baseMagicDef_; }
+int Unit::baseMaxMana() const { return maxMana_; }
+int Unit::baseAttackSpeed() const { return kBaseAttackSpeed; }
 
 UnitClass Unit::unitClass() const { return unitClass_; }
 int Unit::starLevel() const { return starLevel_; }
@@ -141,13 +176,11 @@ void Unit::takeDamage(int amount) {
 }
 
 void Unit::takePhysicalDamage(int rawDmg) {
-    // 物理防御做平减，保底造成 1 点伤害。
     const int net = std::max(1, rawDmg - physicalDef());
     takeDamage(net);
 }
 
 void Unit::takeMagicDamage(int rawDmg) {
-    // 法术防御做平减，保底造成 1 点伤害。
     const int net = std::max(1, rawDmg - magicDef());
     takeDamage(net);
 }
@@ -156,21 +189,20 @@ void Unit::gainMana(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
     }
-    mana_ = std::min(maxMana_, mana_ + amount);
+    mana_ = std::min(maxMana(), mana_ + amount);
 }
 
 void Unit::heal(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
     }
-    // 上限为 maxHp()（含羁绊加成）。
     hp_ = std::min(maxHp(), hp_ + amount);
 }
 
 void Unit::spendAllMana() { mana_ = 0; }
 
 void Unit::resetToFull() {
-    // 含装备与羁绊加成的完整血量重置。
+    recalculateCurrentStats();
     hp_ = maxHp();
     mana_ = 0;
 }
@@ -184,16 +216,17 @@ void Unit::equipItem(ItemType item) {
     if (static_cast<int>(equippedItems_.size()) < equipSlotCount()) {
         equippedItems_.push_back(item);
     } else {
-        // 与旧行为兼容：槽位已满时，新装备替换第一个槽位。
         equippedItems_.at(0) = item;
     }
 
+    recalculateCurrentStats();
+
     const int newMax = maxHp();
     if (newMax > oldMax && oldMax > 0 && hp_ > 0) {
-        // 最大生命值提高时按比例放大当前生命，保持血量百分比。
-        hp_ = static_cast<int>(static_cast<double>(hp_) / oldMax * newMax + 0.5);
+        hp_ = roundStat(static_cast<double>(hp_) / oldMax * newMax);
     }
     clampHpToCurrentMax();
+    clampManaToCurrentMax();
 }
 
 void Unit::unequipItem() { unequipItemAt(0); }
@@ -203,32 +236,43 @@ void Unit::unequipItemAt(int slotIndex) {
         return;
     }
     equippedItems_.erase(equippedItems_.begin() + slotIndex);
+    recalculateCurrentStats();
     clampHpToCurrentMax();
+    clampManaToCurrentMax();
+}
+
+std::vector<ItemType> Unit::takeAllEquippedItems() {
+    std::vector<ItemType> items = equippedItems_;
+    equippedItems_.clear();
+    recalculateCurrentStats();
+    clampHpToCurrentMax();
+    clampManaToCurrentMax();
+    return items;
 }
 
 void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp) {
     bonusAtk_ = bonusAtk;
     bonusMagAtk_ = bonusMagAtk;
     bonusMaxHp_ = bonusMaxHp;
+    recalculateCurrentStats();
+    clampHpToCurrentMax();
 }
 
 void Unit::clearSynergyBuffs() {
     bonusAtk_ = 0;
     bonusMagAtk_ = 0;
     bonusMaxHp_ = 0;
+    recalculateCurrentStats();
+    clampHpToCurrentMax();
 }
 
 void Unit::upgradeToStar(int newStarLevel) {
-    // 升星倍率：★2 = 3.0×，★3 = 7.0×；确保升星收益明显高于不升星。
     double factor = (newStarLevel == 2) ? 3.0 : 7.0;
-    // 只提升基础属性；装备加成通过 getter 统一叠加，避免状态错乱。
-    baseAttack_   = static_cast<int>(star1Atk_    * factor);
-    baseMaxHp_    = static_cast<int>(star1MaxHp_  * factor);
-    // 法师的法术攻击随星级等比放大（star1MagAtk_ 非零时生效）。
+    baseAttack_ = static_cast<int>(star1Atk_ * factor);
+    baseMaxHp_ = static_cast<int>(star1MaxHp_ * factor);
     if (star1MagAtk_ > 0) {
         baseMagicAtk_ = static_cast<int>(star1MagAtk_ * factor);
     }
-    // 防御值随星级等比放大（非零时生效，保留0值单位不变）。
     if (star1PhysDef_ > 0) {
         basePhysicalDef_ = static_cast<int>(star1PhysDef_ * factor);
     }
@@ -236,13 +280,14 @@ void Unit::upgradeToStar(int newStarLevel) {
         baseMagicDef_ = static_cast<int>(star1MagDef_ * factor);
     }
     starLevel_ = newStarLevel;
-    hp_ = maxHp();  // 升星后满血
+    recalculateCurrentStats();
+    hp_ = maxHp();
 }
 
 int Unit::scaledSkillDamage(int baseDamage) const {
     if (starLevel_ == 2) return static_cast<int>(baseDamage * 3.0);
     if (starLevel_ == 3) return static_cast<int>(baseDamage * 7.0);
-    return baseDamage;  // ★1 不缩放
+    return baseDamage;
 }
 
 void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
@@ -272,7 +317,8 @@ void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* pr
 int Unit::equipmentBonusPhysAtk() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
-        total += getItemDef(equippedItems_.at(i)).bonusPhysAtk;
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(baseAttack_ * def.bonusPhysAtkPercent / 100.0);
     }
     return total;
 }
@@ -280,7 +326,8 @@ int Unit::equipmentBonusPhysAtk() const {
 int Unit::equipmentBonusMagAtk() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
-        total += getItemDef(equippedItems_.at(i)).bonusMagAtk;
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(baseMagicAtk_ * def.bonusMagAtkPercent / 100.0);
     }
     return total;
 }
@@ -288,7 +335,8 @@ int Unit::equipmentBonusMagAtk() const {
 int Unit::equipmentBonusPhysDef() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
-        total += getItemDef(equippedItems_.at(i)).bonusPhysDefense;
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(basePhysicalDef_ * def.bonusPhysDefensePercent / 100.0);
     }
     return total;
 }
@@ -296,7 +344,8 @@ int Unit::equipmentBonusPhysDef() const {
 int Unit::equipmentBonusMagDef() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
-        total += getItemDef(equippedItems_.at(i)).bonusMagDefense;
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(baseMagicDef_ * def.bonusMagDefensePercent / 100.0);
     }
     return total;
 }
@@ -304,22 +353,64 @@ int Unit::equipmentBonusMagDef() const {
 int Unit::equipmentBonusMaxHp() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
-        total += getItemDef(equippedItems_.at(i)).bonusMaxHp;
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(baseMaxHp_ * def.bonusMaxHpPercent / 100.0);
     }
     return total;
 }
 
+int Unit::equipmentBonusAttackSpeed() const {
+    int total = 0;
+    for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
+        const ItemDef& def = getItemDef(equippedItems_.at(i));
+        total += roundStat(kBaseAttackSpeed * def.bonusAttackSpeedPercent / 100.0);
+    }
+    return total;
+}
+
+int Unit::equipmentBonusMaxManaFlat() const {
+    int total = 0;
+    for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
+        total += getItemDef(equippedItems_.at(i)).bonusMaxManaFlat;
+    }
+    return total;
+}
+
+void Unit::recalculateCurrentStats() {
+    const int equipPhysAtk = equipmentBonusPhysAtk();
+    const int equipMagAtk = equipmentBonusMagAtk();
+    const int equipMaxHp = equipmentBonusMaxHp();
+    const int equipPhysDef = equipmentBonusPhysDef();
+    const int equipMagDef = equipmentBonusMagDef();
+    const int equipAtkSpeed = equipmentBonusAttackSpeed();
+
+    currentPhysicalAtk_ = roundStat(baseAttack_ + equipPhysAtk + bonusAtk_);
+    currentMagicAtk_ = roundStat(baseMagicAtk_ + equipMagAtk + bonusMagAtk_);
+    currentMaxHp_ = roundStat(baseMaxHp_ + equipMaxHp + bonusMaxHp_);
+    currentPhysicalDef_ = roundStat(basePhysicalDef_ + equipPhysDef);
+    currentMagicDef_ = roundStat(baseMagicDef_ + equipMagDef);
+    currentAttackSpeed_ = roundStat(kBaseAttackSpeed + equipAtkSpeed);
+
+    const int rawMaxMana = maxMana_ + equipmentBonusMaxManaFlat();
+    currentMaxMana_ = rawMaxMana < 1 ? 1 : rawMaxMana;
+}
+
+int Unit::equipmentMagicAtkBonus() const { return equipmentBonusMagAtk(); }
+
 void Unit::setBaseMagicAtk(int v) {
     baseMagicAtk_ = v;
-    star1MagAtk_  = v;  // 同步记录原始值，供 upgradeToStar() 按比例缩放
+    star1MagAtk_ = v;
+    recalculateCurrentStats();
 }
 void Unit::setBasePhysicalDef(int v) {
     basePhysicalDef_ = v;
-    star1PhysDef_ = v;  // 同步记录原始值，供 upgradeToStar() 按比例缩放
+    star1PhysDef_ = v;
+    recalculateCurrentStats();
 }
 void Unit::setBaseMagicDef(int v) {
     baseMagicDef_ = v;
-    star1MagDef_ = v;   // 同步记录原始值，供 upgradeToStar() 按比例缩放
+    star1MagDef_ = v;
+    recalculateCurrentStats();
 }
 
 void Unit::clampHpToCurrentMax() {
@@ -332,14 +423,17 @@ void Unit::clampHpToCurrentMax() {
     }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Unit::usesMagicAttack() 默认实现（物理攻击单位）
-// ─────────────────────────────────────────────────────────────────────────────
+void Unit::clampManaToCurrentMax() {
+    if (mana_ > maxMana()) {
+        mana_ = maxMana();
+    }
+    if (mana_ < 0) {
+        mana_ = 0;
+    }
+}
+
 bool Unit::usesMagicAttack() const { return false; }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// PhysicalAttackUnit — 物理攻击中间层
-// ─────────────────────────────────────────────────────────────────────────────
 PhysicalAttackUnit::PhysicalAttackUnit(int id, const std::string& name, UnitOwner owner,
                                        int maxHp, int attack, int attackRange, int maxMana,
                                        UnitClass unitClass)
@@ -349,10 +443,6 @@ PhysicalAttackUnit::PhysicalAttackUnit(const PhysicalAttackUnit& other) : Unit(o
 
 bool PhysicalAttackUnit::usesMagicAttack() const { return false; }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// MagicalAttackUnit — 法术攻击中间层
-// 构造时自动调用 setBaseMagicAtk(attack)，将 attack 参数注入 baseMagicAtk_。
-// ─────────────────────────────────────────────────────────────────────────────
 MagicalAttackUnit::MagicalAttackUnit(int id, const std::string& name, UnitOwner owner,
                                      int maxHp, int attack, int attackRange, int maxMana,
                                      UnitClass unitClass)
@@ -364,9 +454,6 @@ MagicalAttackUnit::MagicalAttackUnit(const MagicalAttackUnit& other) : Unit(othe
 
 bool MagicalAttackUnit::usesMagicAttack() const { return true; }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// WarriorUnit / MageUnit（教学用基础单位，继承自对应中间层）
-// ─────────────────────────────────────────────────────────────────────────────
 WarriorUnit::WarriorUnit(int id, UnitOwner owner)
     : PhysicalAttackUnit(id, "Warrior", owner, 800, 65, 1, 100, UnitClass::kWarrior) {}
 

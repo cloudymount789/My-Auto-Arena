@@ -16,7 +16,7 @@ bool inAttackRange(Position p, Position targetPos, int attackRange) {
 }
 
 // 判断单位是否可进入目标格：仅允许空格。
-// 注：起始格在 BFS 开始前已标记 visited，永远不会被扩展为邻格，故无需特判自身起始位置。
+// 注：起始格在广度优先搜索开始前已标记为已访问，永远不会被扩展为邻格，故无需特判自身起始位置。
 bool canEnterCell(const Board& board, Position cell) {
     return board.occupantOnBoard(cell) == Board::kEmptySlot;
 }
@@ -33,6 +33,8 @@ bool isGoalCell(const Board& board, Position cell, Position targetPos, int attac
 
 }  // namespace
 
+// 流程：参数校验 ──> BFS 从起点扩展空格 ──> 找到首个“可攻击目标”的格子
+//       ──> 回溯路径 ──> 输出路径上第二格（即下一步）作为 outNext
 bool Pathfinder::nextStepTowardAttackRange(const Board& board,
                                            const std::map<int, Unit*>& units,  // 预留参数：用于未来按单位类型设置通行性
                                            int movingUnitId, Position start, Position targetPos, int attackRange,

@@ -20,7 +20,7 @@ public:
     SpawnedEnemyUnit(int id, const EnemyTemplate& tpl, int starLevel)
         : Unit(id, tpl.name, UnitOwner::enemy, scaleStat(tpl.hp, starLevel), scaleStat(tpl.atk, starLevel), tpl.range,
                tpl.maxMana) {
-        // 防御值随升星同比缩放，与 HP/ATK 保持一致的成长规律。
+        // 防御值随升星同比缩放，与生命/物攻保持一致的成长规律。
         setBasePhysicalDef(scaleStat(tpl.physDef, starLevel));
         setBaseMagicDef(scaleStat(tpl.magDef, starLevel));
     }
@@ -39,7 +39,7 @@ const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 重甲战士和攻城弩设置高物防/低魔防，突出法师的克制关系。
     // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
     // 防御值设计原则：物防高=近战重甲；魔防高=法系单位；射手两防均低；
-    // 这些基础值会随关卡 statScaleFactor（无尽模式）和升星（scaleStat）同比膨胀。
+    // 这些基础值会随关卡属性缩放系数 statScaleFactor（无尽模式）和升星函数 scaleStat 同比膨胀。
     static const std::vector<EnemyTemplate> kTemplates = {
         {"战士",     1700, 68, 1,  75,  15,  5},  // 0: 轻甲前排，物防中等，魔防低
         {"射手",     1300, 65, 4,  75,   5,  5},  // 1: 皮甲远程，两防均低
@@ -51,6 +51,7 @@ const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     return kTemplates;
 }
 
+// 流程：校验回合数 ──> 初始化 LevelConfig ──> 前6关走固定新手曲线 ──> 第7关起计算星级/属性倍率 ──> 按周期轮换阵型 ──> 设置奖惩并返回
 LevelConfig EnemySpawner::configForRound(int round) const {
     if (round < 1) {
         round = 1;
@@ -128,14 +129,14 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 第7关起：无尽模式，使用6关的模板结构，对 HP/ATK 按指数公式膨胀。
+    // 第7关起：无尽模式，使用6关的模板结构，对生命/物攻按指数公式膨胀。
     // 每3关循环一组阵型（轻量/标准/精英），并且关数越高组内全部升星。
     // ─────────────────────────────────────────────────────────────────────
-    // 动态 star level: round 7-9 -> star1, round 10-12 -> star2, round 13+ -> star2
+    // 动态星级：第 7–9 关为 1 星，第 10–12 关为 2 星，第 13 关及以上为 2 星
     const int baseStar = (round >= 13) ? 2 : (round >= 10 ? 2 : 1);
     const int eliteStar = (round >= 10) ? 2 : 1;
 
-    // 每关 12% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板 hp/atk。
+    // 每关 12% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板生命/物攻。
     const double factor = std::pow(1.12, round - 6);
     cfg.statScaleFactor = factor;
 
@@ -172,6 +173,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     return cfg;
 }
 
+// 流程：读取关卡配置 ──> 遍历 spawnList ──> 校验模板/位置 ──> 按 statScaleFactor 缩放属性 ──> 创建单位并落盘 ──> 收集已生成指针
 std::vector<Unit*> EnemySpawner::spawnRound(int round, Board& board, int& nextUnitId) const {
     LevelConfig cfg = configForRound(round);
     std::vector<Unit*> spawned;
