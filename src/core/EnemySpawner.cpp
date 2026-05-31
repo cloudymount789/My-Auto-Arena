@@ -34,19 +34,15 @@ EnemySpawner::EnemySpawner() {}
 
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 模板顺序：战士 / 射手 / 重甲战士 / 法师 / 治疗师 / 攻城弩
-    // 敌方基础值略高于对应玩家英雄，配合升星倍率形成后期压力。
+    // 敌方基础值略低于对应玩家英雄；前5关再通过 statScaleFactor 进一步削弱。
     // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
-    // 重甲战士和攻城弩设置高物防/低魔防，突出法师的克制关系。
-    // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
-    // 防御值设计原则：物防高=近战重甲；魔防高=法系单位；射手两防均低；
-    // 这些基础值会随关卡属性缩放系数 statScaleFactor（无尽模式）和升星函数 scaleStat 同比膨胀。
     static const std::vector<EnemyTemplate> kTemplates = {
-        {"战士",     1700, 68, 1,  75,  15,  5},  // 0: 轻甲前排，物防中等，魔防低
-        {"射手",     1300, 65, 4,  75,   5,  5},  // 1: 皮甲远程，两防均低
-        {"重甲战士", 2800, 52, 1,  90,  70, 15},  // 2: 重甲肉盾，物防极高，魔防中等
-        {"法师",     1050, 45, 3,  70,   5, 30},  // 3: 法术单位，物防低，魔防高
-        {"治疗师",   1450, 30, 3,  80,   5, 20},  // 4: 法系辅助，物防低，魔防较高
-        {"攻城弩",   3200, 90, 5, 110,  80, 15},  // 5: BOSS重型机械，物防极高，魔防中等
+        {"战士",     1150, 48, 1,  75,  10,  5},  // 0: 轻甲前排
+        {"射手",      900, 46, 4,  75,   5,  5},  // 1: 皮甲远程
+        {"重甲战士", 1900, 38, 1,  90,  40, 12},  // 2: 重甲肉盾
+        {"法师",      800, 30, 3,  70,   5, 22},  // 3: 法术单位
+        {"治疗师",   1000, 22, 3,  80,   5, 15},  // 4: 法系辅助
+        {"攻城弩",   2400, 60, 5, 110,  55, 12},  // 5: BOSS重型机械
     };
     return kTemplates;
 }
@@ -62,20 +58,22 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     cfg.winGoldReward = 0;
 
     // ─────────────────────────────────────────────────────────────────────
-    // 前6关：精心设计的新手曲线，让玩家先赢后感受压力
+    // 前6关：新手曲线 —— 前5关属性大幅削弱，第6关起 BOSS 局开始有压力
     // 第7关起：使用无尽模板 + scaleStatForRound 指数膨胀
     // ─────────────────────────────────────────────────────────────────────
 
-    // 第1关：2个战士，玩家出发仅有2个英雄，数量平等但统计偏强。
+    // 第1关：2个战士，玩家出发仅有2个英雄，应轻松取胜。
     if (round == 1) {
+        cfg.statScaleFactor = 0.55;
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
         cfg.onLosePlayerHpDamage = 5;
         cfg.winGoldReward = 4;
         return cfg;
     }
-    // 第2关：3个混合，射手+战士+战士，玩家应购入第3英雄。
+    // 第2关：3个混合，射手+战士+战士。
     if (round == 2) {
+        cfg.statScaleFactor = 0.60;
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 6}});
@@ -83,8 +81,9 @@ LevelConfig EnemySpawner::configForRound(int round) const {
         cfg.winGoldReward = 5;
         return cfg;
     }
-    // 第3关：4个，重甲战士+射手+战士+法师，首次出现法师。
+    // 第3关：4个，重甲战士+射手+战士+法师。
     if (round == 3) {
+        cfg.statScaleFactor = 0.65;
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 1}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
@@ -93,9 +92,10 @@ LevelConfig EnemySpawner::configForRound(int round) const {
         cfg.winGoldReward = 6;
         return cfg;
     }
-    // 第4关：5个，★2重甲战士领队，射手×2+法师+治疗师，出现治疗师使敌方持久化。
+    // 第4关：5个，重甲战士领队，射手×2+法师+治疗师（均为1星）。
     if (round == 4) {
-        cfg.spawnList.push_back(SpawnEntry{2, 2, Position{1, 2}});
+        cfg.statScaleFactor = 0.70;
+        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 6}});
         cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 2}});
@@ -104,10 +104,11 @@ LevelConfig EnemySpawner::configForRound(int round) const {
         cfg.winGoldReward = 8;
         return cfg;
     }
-    // 第5关：5个，★2重甲战士+★2射手+法师×2+治疗师，远程输出最强一关。
+    // 第5关：5个，重甲战士+射手×2+法师×2+治疗师（均为1星）。
     if (round == 5) {
-        cfg.spawnList.push_back(SpawnEntry{2, 2, Position{1, 1}});
-        cfg.spawnList.push_back(SpawnEntry{1, 2, Position{0, 3}});
+        cfg.statScaleFactor = 0.75;
+        cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 1}});
+        cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 5}});
         cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 6}});
         cfg.spawnList.push_back(SpawnEntry{4, 1, Position{0, 1}});
@@ -117,6 +118,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第6关：BOSS局，攻城弩★2领队，重甲战士+战士×2+法师+治疗师。
     if (round == 6) {
+        cfg.statScaleFactor = 0.90;
         cfg.spawnList.push_back(SpawnEntry{5, 2, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 1}});
@@ -136,8 +138,8 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     const int baseStar = (round >= 13) ? 2 : (round >= 10 ? 2 : 1);
     const int eliteStar = (round >= 10) ? 2 : 1;
 
-    // 每关 12% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板生命/物攻。
-    const double factor = std::pow(1.12, round - 6);
+    // 每关 17% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板生命/物攻。
+    const double factor = std::pow(1.17, round - 6);
     cfg.statScaleFactor = factor;
 
     // 阵型轮换（每3关一个周期）
@@ -184,9 +186,9 @@ std::vector<Unit*> EnemySpawner::spawnRound(int round, Board& board, int& nextUn
             !board.inBounds(entry.deployPos) || !board.isEnemyHalf(entry.deployPos)) {
             continue;
         }
-        // 无尽关卡：对模板 hp/atk/physDef/magDef 统一应用 statScaleFactor 膨胀。
+        // 无尽关卡：对模板 hp/atk/physDef/magDef 统一应用 statScaleFactor 膨胀/削弱。
         EnemyTemplate scaledTpl = tpl.at(entry.templateIndex);
-        if (cfg.statScaleFactor > 1.0 + 1e-6) {
+        if (std::abs(cfg.statScaleFactor - 1.0) > 1e-6) {
             scaledTpl.hp      = static_cast<int>(scaledTpl.hp      * cfg.statScaleFactor + 0.5);
             scaledTpl.atk     = static_cast<int>(scaledTpl.atk     * cfg.statScaleFactor + 0.5);
             scaledTpl.physDef = static_cast<int>(scaledTpl.physDef * cfg.statScaleFactor + 0.5);

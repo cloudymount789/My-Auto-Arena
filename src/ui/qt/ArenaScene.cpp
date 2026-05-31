@@ -6,6 +6,7 @@
 #include <QColor>
 #include <QGraphicsEllipseItem>
 #include <QGraphicsLineItem>
+#include <QGraphicsLineItem>
 #include <QGraphicsRectItem>
 #include <QPen>
 #include <QPropertyAnimation>
@@ -272,30 +273,78 @@ void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
             }
 
         } else if (ev.type == core::BattleEvent::Type::kSkill) {
-            // ── 技能：施法光环（动态脉冲）+ 弹体（带命中脉冲）──
+            // ── 技能：按 skillVfxType 分支渲染不同形态特效 ──
             const QColor skillCol = skillColor(ev.sourceClass, ev.sourceOwner);
 
             // 施法起点：发出 2 层扩散脉冲环
             spawnPulse(src, skillCol, 8.0,  44.0, 300);
             spawnPulse(src, skillCol, 14.0, 52.0, 420);
 
-            // 坦克技能：范围伤害冲击圈 + 脉冲环（无弹体）
-            if (ev.sourceClass == core::UnitClass::kTank) {
+            if (ev.skillVfxType == core::BattleEvent::SkillVfxType::kStunSingle) {
+                // 战士：单体眩晕 — 目标处金色星环 + 冲击点
+                const QColor stunCol = isEnemy ? QColor(200, 180, 0, 230) : QColor(255, 230, 60, 240);
+                spawnPulse(tgt, stunCol, 6.0,  38.0, 400);
+                spawnPulse(tgt, stunCol, 12.0, 48.0, 520);
+                const double dotR = 10.0;
+                QGraphicsEllipseItem* dot =
+                    new QGraphicsEllipseItem(tgt.x() - dotR, tgt.y() - dotR, dotR * 2, dotR * 2);
+                dot->setBrush(QBrush(stunCol));
+                dot->setPen(QPen(stunCol.lighter(150), 2));
+                dot->setZValue(21.0);
+                addItem(dot);
+                vfxItems_.push_back(dot);
+                continue;
+            }
+
+            if (ev.skillVfxType == core::BattleEvent::SkillVfxType::kAdjacentAoe) {
+                // 重甲战士：范围伤害冲击圈
                 const QColor aoeCol = isEnemy ? QColor(140, 60, 0, 180) : QColor(255, 140, 0, 180);
                 spawnPulse(src, aoeCol, 20.0, 80.0, 500);
                 spawnPulse(src, aoeCol, 30.0, 90.0, 600);
                 continue;
             }
 
-            // 治疗师技能：绿色治疗波（在目标处生成两圈扩散环）
-            if (ev.sourceClass == core::UnitClass::kHealer) {
+            if (ev.skillVfxType == core::BattleEvent::SkillVfxType::kHeal) {
+                // 治疗师：绿色治疗波
                 const QColor healCol = isEnemy ? QColor(160, 0, 160, 220) : QColor(0, 220, 120, 220);
                 spawnPulse(tgt, healCol, 6.0,  36.0, 350);
                 spawnPulse(tgt, healCol, 12.0, 44.0, 500);
                 continue;
             }
 
-            // 其他职业：射出技能弹体（命中后生成爆炸脉冲）
+            if (ev.skillVfxType == core::BattleEvent::SkillVfxType::kLineAoe) {
+                // 射手：直线 AOE — 沿同行/同列绘制光束
+                const QColor beamCol = isEnemy ? QColor(255, 120, 0, 210) : QColor(255, 240, 60, 230);
+                const double tile = 64.0;
+                const double margin = 20.0;
+                const int row = ev.srcRow;
+                const int col = ev.srcCol;
+                QGraphicsLineItem* beam = nullptr;
+                if (ev.lineIsVertical) {
+                    const double x = margin + col * tile + tile / 2.0;
+                    beam = new QGraphicsLineItem(x, margin, x, margin + 8 * tile);
+                } else {
+                    const double y = margin + row * tile + tile / 2.0;
+                    beam = new QGraphicsLineItem(margin, y, margin + 8 * tile, y);
+                }
+                beam->setPen(QPen(beamCol, 6.0));
+                beam->setZValue(22.0);
+                addItem(beam);
+                vfxItems_.push_back(beam);
+                spawnPulse(src, beamCol, 10.0, 56.0, 380);
+                continue;
+            }
+
+            if (ev.skillVfxType == core::BattleEvent::SkillVfxType::kRangeAoe) {
+                // 法师：攻击范围 AOE — 大范围法术脉冲
+                const QColor aoeCol = isEnemy ? QColor(0, 140, 70, 200) : QColor(160, 0, 255, 220);
+                const double rangePx = 3.0 * 64.0;
+                spawnPulse(src, aoeCol, 16.0, rangePx, 520);
+                spawnPulse(src, aoeCol.lighter(130), 24.0, rangePx * 1.1, 620);
+                continue;
+            }
+
+            // 兜底：默认技能弹体
             const double skillR = (ev.sourceClass == core::UnitClass::kMage) ? 13.0 : 8.0;
             const double sklWS  = (ev.sourceClass == core::UnitClass::kArcher) ? 2.5 : 1.0;
             const int    sklDur = (ev.sourceClass == core::UnitClass::kMage) ? 280 : 210;
@@ -312,7 +361,7 @@ void ArenaScene::spawnVfx(const std::vector<core::BattleEvent>& events) {
             sproj.radius          = skillR;
             sproj.widthScale      = sklWS;
             sproj.angle           = ang;
-            sproj.spawnImpactPulse = true;   // 命中时产生额外爆炸环
+            sproj.spawnImpactPulse = true;
             sproj.impactColor     = skillCol;
             activeProjectiles_.push_back(sproj);
         }

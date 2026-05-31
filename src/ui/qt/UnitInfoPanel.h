@@ -40,6 +40,7 @@ private:
     QLabel* magDefLabel_;   // 法术防御
     QLabel* atkSpeedLabel_; // 攻击速度（现有属性）
     QLabel* range_;
+    QLabel* skillLabel_;
     QProgressBar* hp_;
     QProgressBar* mana_;
     QPushButton* sellBtn_;

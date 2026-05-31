@@ -14,6 +14,8 @@ namespace core {
 // 每 tick 记录的战斗事件，用于驱动 GUI 特效动画。
 struct BattleEvent {
     enum class Type { kAttack, kSkill };
+    // 技能特效类型：驱动 GUI 按技能形态渲染不同 VFX。
+    enum class SkillVfxType { kNone, kStunSingle, kLineAoe, kRangeAoe, kAdjacentAoe, kHeal };
     Type type;
     int sourceId;            // 攻击者/施法者单位 ID
     int targetId;            // 目标单位 ID（-1 表示无具体目标）
@@ -22,12 +24,14 @@ struct BattleEvent {
     UnitOwner sourceOwner;   // 攻击者阵营（玩家/敌方，用于区分特效风格）
     int srcRow, srcCol;      // 事件发生时施法者的棋盘坐标（-1 表示不在棋盘）
     int tgtRow, tgtCol;      // 事件发生时目标的棋盘坐标
+    SkillVfxType skillVfxType;  // 技能事件专用：特效形态
+    bool lineIsVertical;        // 直线 AOE：true=同列, false=同行
 };
 
 class BattleEngine {
 public:
     static const int kMaxTicks = 5000;
-    static const int kManaPerAttack = 25;  // 每次普攻回蓝，加快技能释放节奏
+    static const int kManaPerAttack = 10;  // 每次普攻回蓝
 
     BattleEngine(Board& board, std::map<int, Unit*>& units);
     BattleEngine(const BattleEngine& other) = delete;

@@ -58,6 +58,12 @@ public:
     int baseAttackSpeed() const;
     bool isAlive() const;
 
+    // 眩晕：剩余无法行动的 tick 数（战斗引擎每 tick 递减）。
+    bool isStunned() const;
+    int stunTicksRemaining() const;
+    void applyStun(int ticks);
+    void tickStun();
+
     // 第三阶段新增：职业、星级、装备访问接口。
     UnitClass unitClass() const;
     int starLevel() const;
@@ -144,6 +150,7 @@ private:
     int star1PhysDef_;       // 原始星级1物理防御（升星乘算用）
     int star1MagDef_;        // 原始星级1法术防御（升星乘算用）
     UnitState state_;        // 战斗状态机当前状态，每 tick 由 BattleEngine 更新
+    int stunTicksRemaining_; // 眩晕剩余 tick（>0 时本 tick 无法普攻/施法/移动）
 
     // 现有属性缓存（recalculateCurrentStats 更新，GUI 与战斗读取）。
     int currentPhysicalAtk_;

@@ -7,6 +7,21 @@
 namespace my_auto_arena {
 namespace core {
 
+namespace {
+
+BattleEvent::SkillVfxType skillVfxTypeForClass(UnitClass cls) {
+    switch (cls) {
+        case UnitClass::kWarrior: return BattleEvent::SkillVfxType::kStunSingle;
+        case UnitClass::kArcher:  return BattleEvent::SkillVfxType::kLineAoe;
+        case UnitClass::kTank:    return BattleEvent::SkillVfxType::kAdjacentAoe;
+        case UnitClass::kMage:    return BattleEvent::SkillVfxType::kRangeAoe;
+        case UnitClass::kHealer:  return BattleEvent::SkillVfxType::kHeal;
+        default:                  return BattleEvent::SkillVfxType::kNone;
+    }
+}
+
+}  // namespace
+
 BattleEngine::BattleEngine(Board& board, std::map<int, Unit*>& units)
     : board_(board), units_(units), tickCount_(0), finished_(false), outcome_{false, 0, 0, false}, defeatHpPenalty_(4) {}
 
@@ -38,6 +53,10 @@ void BattleEngine::tick() {
         if (attacker == nullptr || !attacker->isAlive()) {
             continue;
         }
+        if (attacker->isStunned()) {
+            attacker->tickStun();
+            continue;
+        }
         Unit* target = selectTarget(*attacker);
         if (target == nullptr) {
             continue;
@@ -57,6 +76,15 @@ void BattleEngine::tick() {
             ev.sourceOwner = attacker->owner();
             ev.srcRow      = attackerPos.row;  ev.srcCol = attackerPos.col;
             ev.tgtRow      = targetPos.row;    ev.tgtCol = targetPos.col;
+            ev.skillVfxType = skillVfxTypeForClass(attacker->unitClass());
+            if (attacker->unitClass() == UnitClass::kArcher && board_.inBounds(attackerPos) &&
+                board_.inBounds(targetPos)) {
+                const int dr = attackerPos.row - targetPos.row;
+                const int dc = attackerPos.col - targetPos.col;
+                ev.lineIsVertical = (dr * dr >= dc * dc);
+            } else {
+                ev.lineIsVertical = false;
+            }
             tickEvents_.push_back(ev);
             attacker->castFullManaSkill(board_, units_, target);
             continue;
@@ -77,6 +105,10 @@ void BattleEngine::tick() {
     for (std::map<int, Unit*>::iterator it = units_.begin(); it != units_.end(); ++it) {
         Unit* attacker = it->second;
         if (attacker == nullptr || !attacker->isAlive()) {
+            continue;
+        }
+        if (attacker->isStunned()) {
+            attacker->tickStun();
             continue;
         }
         Unit* target = selectTarget(*attacker);
@@ -130,6 +162,8 @@ bool BattleEngine::tryNormalAttack(Unit* attacker, Unit* target, Position attack
     ev.srcCol      = attackerPos.col;
     ev.tgtRow      = targetPos.row;
     ev.tgtCol      = targetPos.col;
+    ev.skillVfxType = BattleEvent::SkillVfxType::kNone;
+    ev.lineIsVertical = false;
     tickEvents_.push_back(ev);
 
     if (attacker->unitClass() == UnitClass::kMage) {

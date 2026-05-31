@@ -41,6 +41,7 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       star1PhysDef_(0),
       star1MagDef_(0),
       state_(UnitState::kIdle),
+      stunTicksRemaining_(0),
       currentPhysicalAtk_(attack),
       currentMagicAtk_(0),
       currentMaxHp_(maxHp),
@@ -80,6 +81,7 @@ Unit::Unit(const Unit& other)
       star1PhysDef_(other.star1PhysDef_),
       star1MagDef_(other.star1MagDef_),
       state_(other.state_),
+      stunTicksRemaining_(other.stunTicksRemaining_),
       currentPhysicalAtk_(other.currentPhysicalAtk_),
       currentMagicAtk_(other.currentMagicAtk_),
       currentMaxHp_(other.currentMaxHp_),
@@ -116,6 +118,7 @@ Unit& Unit::operator=(const Unit& other) {
     star1PhysDef_ = other.star1PhysDef_;
     star1MagDef_ = other.star1MagDef_;
     state_ = other.state_;
+    stunTicksRemaining_ = other.stunTicksRemaining_;
     currentPhysicalAtk_ = other.currentPhysicalAtk_;
     currentMagicAtk_ = other.currentMagicAtk_;
     currentMaxHp_ = other.currentMaxHp_;
@@ -145,6 +148,25 @@ int Unit::attackRange() const { return attackRange_; }
 int Unit::mana() const { return mana_; }
 int Unit::maxMana() const { return currentMaxMana_; }
 bool Unit::isAlive() const { return hp_ > 0; }
+
+bool Unit::isStunned() const { return stunTicksRemaining_ > 0; }
+
+int Unit::stunTicksRemaining() const { return stunTicksRemaining_; }
+
+void Unit::applyStun(int ticks) {
+    if (ticks <= 0 || !isAlive()) {
+        return;
+    }
+    if (ticks > stunTicksRemaining_) {
+        stunTicksRemaining_ = ticks;
+    }
+}
+
+void Unit::tickStun() {
+    if (stunTicksRemaining_ > 0) {
+        --stunTicksRemaining_;
+    }
+}
 
 int Unit::basePhysicalAtk() const { return baseAttack_; }
 int Unit::baseMagicAtk() const { return baseMagicAtk_; }
@@ -205,6 +227,7 @@ void Unit::resetToFull() {
     recalculateCurrentStats();
     hp_ = maxHp();
     mana_ = 0;
+    stunTicksRemaining_ = 0;
 }
 
 void Unit::equipItem(ItemType item) {

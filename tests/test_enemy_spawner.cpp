@@ -23,8 +23,8 @@ TEST(EnemySpawnerTest, Round1SpawnsTwoEnemiesOnBoard) {
     ASSERT_EQ(spawned.size(), 2);
     EXPECT_EQ(spawned.at(0)->owner(), UnitOwner::enemy);
     EXPECT_EQ(spawned.at(0)->name(), "战士");
-    EXPECT_EQ(spawned.at(0)->hp(), 1700);
-    EXPECT_EQ(spawned.at(0)->attack(), 68);
+    EXPECT_EQ(spawned.at(0)->hp(), 633);
+    EXPECT_EQ(spawned.at(0)->attack(), 26);
 
     const my_auto_arena::core::Position pos = board.findUnitOnBoard(spawned.at(0)->id());
     EXPECT_TRUE(board.inBounds(pos));

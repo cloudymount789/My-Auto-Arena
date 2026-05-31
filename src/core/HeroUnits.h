@@ -66,6 +66,10 @@ enum class HeroType { kWarrior, kArcher, kTank, kMage, kHealer };
 // 英雄工厂函数：根据类型创建对应英雄实例（堆分配，调用方负责释放）。
 Unit* createHero(HeroType type, int id, UnitOwner owner);
 
+// 各英雄满蓝技能的中文描述（GUI 展示用）。
+const char* skillDescriptionForHeroType(HeroType type);
+const char* skillDescriptionForUnitClass(UnitClass cls);
+
 }  // namespace core
 }  // namespace my_auto_arena
 

@@ -3,6 +3,7 @@
 #include <QHBoxLayout>
 #include <QVBoxLayout>
 
+#include "core/HeroUnits.h"
 #include "core/Item.h"
 
 namespace my_auto_arena {
@@ -38,6 +39,10 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     atkSpeedLabel_ = new QLabel("攻速: -", this);
     range_         = new QLabel("射程: -", this);
 
+    skillLabel_ = new QLabel("技能: -", this);
+    skillLabel_->setStyleSheet("font-size: 11px; color: #F9E2AF;");
+    skillLabel_->setWordWrap(true);
+
     hp_   = new QProgressBar(this);
     mana_ = new QProgressBar(this);
     hp_->setFormat("HP %v/%m");
@@ -63,6 +68,7 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     layout->addWidget(magDefLabel_);
     layout->addWidget(atkSpeedLabel_);
     layout->addWidget(range_);
+    layout->addWidget(skillLabel_);
     layout->addWidget(hp_);
     layout->addWidget(mana_);
     layout->addWidget(sellBtn_);
@@ -141,6 +147,7 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
         magDefLabel_->setText("魔防: -");
         atkSpeedLabel_->setText("攻速: -");
         range_->setText("射程: -");
+        skillLabel_->setText("技能: -");
         hp_->setMaximum(1);
         hp_->setValue(0);
         mana_->setMaximum(1);
@@ -189,6 +196,8 @@ void UnitInfoPanel::setUnit(const core::Unit* unit) {
         ? "font-size: 12px; color: #F9E2AF;"
         : "font-size: 12px; color: #6C7086;");
     range_->setText(QString("射程: %1").arg(unit->attackRange()));
+    skillLabel_->setText(
+        QString("技能: %1").arg(QString::fromUtf8(core::skillDescriptionForUnitClass(unit->unitClass()))));
     hp_->setMaximum(unit->maxHp());
     hp_->setValue(unit->hp());
     mana_->setMaximum(unit->maxMana());
