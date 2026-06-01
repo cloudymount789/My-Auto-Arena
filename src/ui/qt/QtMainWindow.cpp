@@ -82,8 +82,14 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     view_->setRenderHints(QPainter::Antialiasing | QPainter::TextAntialiasing);
     view_->setFixedSize(640, 660);
 
-    // 右侧信息+商店面板
-    QWidget* rightPanel = new QWidget(gameArea);
+    // 右侧信息+商店面板。内容可能随装备/羁绊增长，放入滚动区避免挤压遮挡。
+    QScrollArea* rightScroll = new QScrollArea(gameArea);
+    rightScroll->setWidgetResizable(true);
+    rightScroll->setFixedWidth(260);
+    rightScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+    rightScroll->setStyleSheet("QScrollArea { border: none; background: transparent; }");
+
+    QWidget* rightPanel = new QWidget(rightScroll);
     rightPanel->setFixedWidth(240);
     QVBoxLayout* rightLayout = new QVBoxLayout(rightPanel);
     rightLayout->setContentsMargins(0, 0, 0, 0);
@@ -109,14 +115,15 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     itemsLayout_->setSpacing(3);
 
     rightLayout->addWidget(infoPanel_);
-    rightLayout->addWidget(shopPanel_);
     rightLayout->addWidget(synergyLabel_);
+    rightLayout->addWidget(shopPanel_);
     rightLayout->addWidget(itemsTitle);
     rightLayout->addWidget(itemsWidget_);
     rightLayout->addStretch();
+    rightScroll->setWidget(rightPanel);
 
     gameLayout->addWidget(view_);
-    gameLayout->addWidget(rightPanel);
+    gameLayout->addWidget(rightScroll);
 
     // 下方：控制面板
     QWidget* controlBar = new QWidget(central);
@@ -194,6 +201,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     battleTimer_->setInterval(250);
     connect(battleTimer_, SIGNAL(timeout()), this, SLOT(onBattleTick()));
 
+    refreshPreparationSynergyBuffs();
     updateStatusPanel();
     updateShopDisplay();
     updateSynergyDisplay();
@@ -252,8 +260,8 @@ void QtMainWindow::onDragResult(core::DragResult result) {
     } else {
         statusBar()->showMessage("非法操作", 1500);
     }
+    refreshPreparationSynergyBuffs();
     updateStatusPanel();
-    updateSynergyDisplay();  // 拖拽后立即刷新备战区羁绊显示
 }
 
 // 流程：校验可操作与棋盘人口 ──> 切 FSM 到战斗 ──> 生成敌方 ──> 施加羁绊 ──> 启动 BattleEngine 与定时器
@@ -285,9 +293,10 @@ void QtMainWindow::onStartBattle() {
         scene_->addUnitItem(unit);
     }
 
-    // 战斗开始前施加羁绊 BUFF。
+    // 战斗开始前重新施加羁绊 BUFF，确保与备战阶段展示的数值一致。
     core::SynergySystem::applyBuffs(board_, unitsMap_);
     updateSynergyDisplay();
+    updateSelectedUnitPanel();
 
     battleEngine_ = new core::BattleEngine(board_, unitsMap_);
     battleEngine_->setDefeatHpPenalty(currentLevelCfg_.onLosePlayerHpDamage);
@@ -445,6 +454,7 @@ void QtMainWindow::onNextRound() {
     scene_->setDragEnabled(true);
     startBattleBtn_->setEnabled(true);
     nextRoundBtn_->setEnabled(false);
+    refreshPreparationSynergyBuffs();
     updateStatusPanel();
     updateShopDisplay();
     statusBar()->showMessage(QString("第 %1 轮准备中，请布置英雄阵型").arg(fsm_.currentRound()));
@@ -492,11 +502,7 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
     scene_->syncAfterBattle(unitsMap_);
     scene_->rebuild();
 
-    // 若发生升星，刷新当前选中单位的信息面板（星级可能变化）。
-    if (merged && currentSelectedUnitId_ >= 0) {
-        infoPanel_->setUnit(scene_->unitById(currentSelectedUnitId_));
-    }
-
+    refreshPreparationSynergyBuffs();
     updateStatusPanel();
     updateShopDisplay();
     updateItemsDisplay();
@@ -575,6 +581,7 @@ void QtMainWindow::onSellUnit(int unitId) {
     }
     delete unit;
 
+    refreshPreparationSynergyBuffs();
     updateStatusPanel();
     updateShopDisplay();
     updateItemsDisplay();
@@ -604,6 +611,10 @@ void QtMainWindow::onLevelUp() {
 }
 
 void QtMainWindow::onSaveGame() {
+    if (fsm_.currentPhase() == core::GamePhase::kBattle) {
+        statusBar()->showMessage("战斗阶段暂不能存档，请等待结算后再保存", 2000);
+        return;
+    }
     const QString filepath = QFileDialog::getSaveFileName(
         this, "保存游戏", "save_game.txt", "文本文件 (*.txt)");
     if (filepath.isEmpty()) return;
@@ -619,6 +630,10 @@ void QtMainWindow::onSaveGame() {
 
 // 流程：选档路径 ──> SaveManager::load ──> 重建场景与各项 UI 显示
 void QtMainWindow::onLoadGame() {
+    if (fsm_.currentPhase() == core::GamePhase::kBattle) {
+        statusBar()->showMessage("战斗阶段暂不能读档，请等待结算后再读取", 2000);
+        return;
+    }
     const QString filepath = QFileDialog::getOpenFileName(
         this, "读取存档", "", "文本文件 (*.txt)");
     if (filepath.isEmpty()) return;
@@ -626,14 +641,15 @@ void QtMainWindow::onLoadGame() {
     const bool ok = core::SaveManager::load(
         filepath.toStdString(), fsm_, player_, board_, playerUnits_, unitsMap_, pendingItems_);
     if (ok) {
+        recomputeNextUnitId();
         scene_->syncAfterBattle(unitsMap_);
         for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
             scene_->addUnitItem(playerUnits_.at(i));
         }
         scene_->rebuild();
+        refreshPreparationSynergyBuffs();
         updateStatusPanel();
         updateShopDisplay();
-        updateSynergyDisplay();
         updateItemsDisplay();
         statusBar()->showMessage("读档成功", 2000);
     } else {
@@ -658,6 +674,40 @@ bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {
         }
     }
     return false;
+}
+
+void QtMainWindow::refreshPreparationSynergyBuffs() {
+    if (fsm_.canPlayerAct()) {
+        core::SynergySystem::applyBuffs(board_, unitsMap_);
+    }
+    updateSynergyDisplay();
+    updateSelectedUnitPanel();
+}
+
+void QtMainWindow::updateSelectedUnitPanel() {
+    if (infoPanel_ == nullptr) {
+        return;
+    }
+    if (currentSelectedUnitId_ < 0) {
+        return;
+    }
+    std::map<int, core::Unit*>::iterator it = unitsMap_.find(currentSelectedUnitId_);
+    if (it == unitsMap_.end() || it->second == nullptr) {
+        infoPanel_->setUnit(nullptr);
+        currentSelectedUnitId_ = -1;
+        return;
+    }
+    infoPanel_->setUnit(it->second);
+}
+
+void QtMainWindow::recomputeNextUnitId() {
+    int maxId = 99;
+    for (std::map<int, core::Unit*>::const_iterator it = unitsMap_.begin(); it != unitsMap_.end(); ++it) {
+        if (it->first > maxId) {
+            maxId = it->first;
+        }
+    }
+    nextUnitId_ = maxId + 1;
 }
 
 // 流程：刷新阶段/轮次/HP/金币/人口标签 ──> 更新升级人口按钮文案与可用性
@@ -686,23 +736,37 @@ void QtMainWindow::updateStatusPanel() {
     }
 }
 
-// 流程：查询激活羁绊 ──> 拼接名称/点数/效果描述 ──> 更新 synergyLabel_
+// 流程：查询全部羁绊 ──> 拼接星数/下一等级/当前增益 ──> 设置悬停详情
 void QtMainWindow::updateSynergyDisplay() {
     if (synergyLabel_ == nullptr) return;
     const std::vector<core::ActiveSynergy> synergies =
         core::SynergySystem::getActiveSynergies(board_, unitsMap_);
 
-    QString text;
+    QString text = "羁绊\n";
+    QString tooltip;
     for (std::size_t i = 0; i < synergies.size(); ++i) {
         const core::ActiveSynergy& s = synergies.at(i);
-        if (s.activeThreshold > 0) {
-            text += QString("[%1 %2] %3\n")
-                        .arg(QString::fromStdString(s.name))
-                        .arg(s.count)
-                        .arg(QString::fromStdString(s.buffDescription));
+        const int displayThreshold = (s.activeThreshold > 0 && s.count >= s.nextThreshold)
+                                         ? s.activeThreshold
+                                         : s.nextThreshold;
+        text += QString("%1  %2/%3\n%4\n")
+                    .arg(QString::fromStdString(s.name))
+                    .arg(s.count)
+                    .arg(displayThreshold)
+                    .arg(QString::fromStdString(s.buffDescription));
+        if (i + 1 < synergies.size()) {
+            text += "\n";
+        }
+        tooltip += QString("%1\n职业: %2\n阶段:\n%3\n")
+                       .arg(QString::fromStdString(s.name))
+                       .arg(QString::fromStdString(s.classesDescription))
+                       .arg(QString::fromStdString(s.detailDescription));
+        if (i + 1 < synergies.size()) {
+            tooltip += "\n";
         }
     }
-    synergyLabel_->setText(text.isEmpty() ? "羁绊: (无激活)" : text.trimmed());
+    synergyLabel_->setText(text.trimmed());
+    synergyLabel_->setToolTip(tooltip.trimmed());
 }
 
 void QtMainWindow::updateShopDisplay() {
@@ -801,7 +865,7 @@ void QtMainWindow::onEquipItem() {
     pendingItems_.erase(pendingItems_.begin() + idx);
 
     // 刷新显示
-    infoPanel_->setUnit(unit);
+    refreshPreparationSynergyBuffs();
     updateItemsDisplay();
     updateStatusPanel();
 
@@ -832,7 +896,7 @@ void QtMainWindow::onUnequipItem(int unitId, int slotIndex) {
     unit->unequipItemAt(slotIndex);
     pendingItems_.push_back(item);
 
-    infoPanel_->setUnit(unit);
+    refreshPreparationSynergyBuffs();
     updateItemsDisplay();
     updateStatusPanel();
 

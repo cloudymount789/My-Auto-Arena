@@ -108,9 +108,12 @@ private:
 
     // ── 辅助方法 ─────────────────────────────────────────────────
     void updateStatusPanel();
+    void refreshPreparationSynergyBuffs();
     void updateSynergyDisplay();
     void updateShopDisplay();
     void updateItemsDisplay();  // 刷新右侧待装备道具面板
+    void updateSelectedUnitPanel();
+    void recomputeNextUnitId();
     void doSettlement();  // 战斗结束后：结算金币/生命值、清理单位、切换 FSM
 
     bool hasEmptyBenchSlot() const;

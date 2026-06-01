@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstdio>
+#include <fstream>
 #include <map>
 #include <vector>
 
@@ -169,5 +170,81 @@ TEST(SaveTest, SaveAndLoadStarLevel) {
 
     delete playerUnits.at(0);
     delete playerUnitsLoad.at(0);
+    std::remove(filepath.c_str());
+}
+
+TEST(SaveTest, LoadLegacySingleItemSaveWithoutPendingItems) {
+    const std::string filepath = "test_save_legacy.txt";
+    {
+        std::ofstream ofs(filepath);
+        ofs << "# legacy save\n";
+        ofs << "round=1\n";
+        ofs << "player_hp=90\n";
+        ofs << "player_gold=12\n";
+        ofs << "unit_count=1\n";
+        ofs << "unit0_id=7\n";
+        ofs << "unit0_name=战士\n";
+        ofs << "unit0_class=warrior\n";
+        ofs << "unit0_star=1\n";
+        ofs << "unit0_item=sword\n";
+        ofs << "unit0_loc=bench\n";
+        ofs << "unit0_bench_slot=0\n";
+    }
+
+    GameFSM fsmLoad;
+    Player playerLoad(1, 0, 100, 1, 3);
+    Board boardLoad(8, 8, 8);
+    std::vector<Unit*> playerUnitsLoad;
+    std::map<int, Unit*> unitsMapLoad;
+    std::vector<ItemType> pendingLoad;
+
+    ASSERT_TRUE(SaveManager::load(filepath, fsmLoad, playerLoad, boardLoad,
+                                  playerUnitsLoad, unitsMapLoad, pendingLoad));
+    ASSERT_EQ(playerUnitsLoad.size(), static_cast<std::size_t>(1));
+    EXPECT_EQ(playerLoad.populationCap(), 3);
+    EXPECT_EQ(playerUnitsLoad.at(0)->equippedItem(), ItemType::kSword);
+    EXPECT_TRUE(pendingLoad.empty());
+
+    delete playerUnitsLoad.at(0);
+    std::remove(filepath.c_str());
+}
+
+TEST(SaveTest, LoadResetsFsmBeforeRestoringRound) {
+    const std::string filepath = "test_save_round_reset.txt";
+    {
+        std::ofstream ofs(filepath);
+        ofs << "# lower round save\n";
+        ofs << "round=2\n";
+        ofs << "player_hp=100\n";
+        ofs << "player_gold=5\n";
+        ofs << "player_pop_cap=3\n";
+        ofs << "unit_count=0\n";
+        ofs << "pending_item_count=0\n";
+    }
+
+    GameFSM fsmLoad;
+    for (int i = 0; i < 4; ++i) {
+        fsmLoad.startBattle();
+        RoundOutcome dummy;
+        dummy.playerWon = true;
+        dummy.goldReward = 0;
+        dummy.hpPenalty = 0;
+        dummy.gameOver = false;
+        fsmLoad.startSettlement(dummy);
+        fsmLoad.startNextRound();
+    }
+    ASSERT_GT(fsmLoad.currentRound(), 2);
+
+    Player playerLoad(1, 0, 100, 1, 3);
+    Board boardLoad(8, 8, 8);
+    std::vector<Unit*> playerUnitsLoad;
+    std::map<int, Unit*> unitsMapLoad;
+    std::vector<ItemType> pendingLoad;
+
+    ASSERT_TRUE(SaveManager::load(filepath, fsmLoad, playerLoad, boardLoad,
+                                  playerUnitsLoad, unitsMapLoad, pendingLoad));
+    EXPECT_EQ(fsmLoad.currentRound(), 2);
+    EXPECT_EQ(fsmLoad.currentPhase(), GamePhase::kPrepare);
+
     std::remove(filepath.c_str());
 }

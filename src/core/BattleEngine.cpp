@@ -37,6 +37,7 @@ void BattleEngine::tick() {
     }
 
     ++tickCount_;
+    Unit::beginSynergyDamageTick(tickCount_);
     tickEvents_.clear();  // 每 tick 重置事件列表
 
     // 每 tick 开始时将所有存活单位重置为空闲（kIdle），随后按行为更新到对应状态。
@@ -98,6 +99,7 @@ void BattleEngine::tick() {
     clearDeadUnits();
     resolveEndState();
     if (finished_) {
+        Unit::endSynergyDamageTick();
         return;
     }
 
@@ -134,6 +136,7 @@ void BattleEngine::tick() {
         outcome_.hpPenalty = defeatHpPenalty_;
         outcome_.gameOver = false;  // 由 PvERoundRunner 在扣血后判断并设置
     }
+    Unit::endSynergyDamageTick();
 }
 
 bool BattleEngine::isFinished() const { return finished_; }
@@ -166,10 +169,10 @@ bool BattleEngine::tryNormalAttack(Unit* attacker, Unit* target, Position attack
     ev.lineIsVertical = false;
     tickEvents_.push_back(ev);
 
-    if (attacker->unitClass() == UnitClass::kMage) {
-        target->takeMagicDamage(attacker->magicAtk());
+    if (attacker->usesMagicAttack()) {
+        target->takeMagicDamage(attacker->magicAtk(), attacker->magicDefenseIgnorePercent());
     } else {
-        target->takePhysicalDamage(attacker->physicalAtk());
+        target->takePhysicalDamage(attacker->physicalAtk(), attacker->physicalDefenseIgnorePercent());
     }
     attacker->gainMana(kManaPerAttack);
     return true;

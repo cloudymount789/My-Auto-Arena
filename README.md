@@ -111,7 +111,7 @@ ctest --test-dir build --output-on-failure
 | 类 | 职责 |
 |---|---|
 | `Shop` | 5 格商店：`randomizeSlots()` 随机生成，`buy()` 扣金创建英雄，`refresh()` 花费 2 金刷新，`sellValue()` 按星级返还金币。 |
-| `SynergySystem` | 羁绊系统：统计棋盘上 4 种职业（近战/弓手/法术/圣愈）的星级加权点数，阈值 T1=3pts/T2=9pts 激活对应 ATK/HP Buff，`getActiveSynergies()` 供 GUI 展示。 |
+| `SynergySystem` | 羁绊系统：统计棋盘上 4 条命名羁绊的星数（★1=1、★2=2、★3=3），按 3/6/7/9/11/12/15 等阈值提供百分比攻防血量加成、破甲、穿透和护盾场；`getActiveSynergies()` 供 GUI 全量展示。 |
 | `StarUpgrade` | 升星系统：`tryMergeAll()` 遍历玩家单位，发现 3 张同名同星单位时自动合并为更高星级（ATK/HP 按 ★2=3×、★3=7× 缩放）。 |
 | `Item` / `ItemDef` | 装备系统：枚举 4 种装备（铁剑/锁甲/魔纹环/疗愈符），`getItemDef()` 返回属性定义；`Unit::equipItem/unequipItem` 管理单位装备状态。 |
 | `SaveManager` | 存档/读档：`save()` 序列化游戏状态为 key=value 文本文件，`load()` 反序列化恢复；全程用 `try-catch` 保护文件 I/O。 |
@@ -163,6 +163,11 @@ ctest --test-dir build --output-on-failure
 
 ### PvE 关卡推进（PvERoundRunner）
 `runRoundBattle` 封装完整一轮 PvE：`EnemySpawner::spawnRound` → `BattleEngine` 驱动至结束 → 按 `LevelConfig` 结算金币/扣血 → `removeEnemyUnits` 清理指针。
+
+### 羁绊计算（SynergySystem）
+羁绊只统计棋盘上的玩家单位星数，1/2/3 星分别贡献 1/2/3 点。四条羁绊保持完整中文名称：
+`进攻就是最好的防守！`、`因为太怕痛就全点防御力了`、`轻轻敲醒沉睡的心灵`、`要用魔法打败魔法`。
+百分比攻击加成只基于单位基础攻击或基础法攻，不吃装备加成；除护盾场全队免伤外，普通增益只给羁绊内成员。UI 在装备栏下方展示全部可激活羁绊、当前星数/下一档和当前增益，悬停显示职业范围与全部阶段效果。
 
 ## Helper Functions
 

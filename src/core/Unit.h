@@ -76,10 +76,12 @@ public:
     void setState(UnitState s);
 
     void takeDamage(int amount);
-    // 物理伤害：净伤害 = max(1, 原始伤害 - physicalDef())，保底 1 点。
+    // 物理伤害：净伤害 = max(1, 原始伤害 - 有效 physicalDef())，保底 1 点。
     void takePhysicalDamage(int rawDmg);
-    // 法术伤害：净伤害 = max(1, 原始伤害 - magicDef())，保底 1 点。
+    void takePhysicalDamage(int rawDmg, int defenseIgnorePercent);
+    // 法术伤害：净伤害 = max(1, 原始伤害 - 有效 magicDef())，保底 1 点。
     void takeMagicDamage(int rawDmg);
+    void takeMagicDamage(int rawDmg, int defenseIgnorePercent);
     void gainMana(int amount);
     // heal() 上限为 maxHp()（含羁绊加成）。
     void heal(int amount);
@@ -95,9 +97,19 @@ public:
     std::vector<ItemType> takeAllEquippedItems();
 
     // 羁绊 BUFF：每轮战斗开始前设置，结束后清除。
-    // bonusAtk 加到物理攻击；bonusMagAtk 加到法术攻击（法师羁绊专用）。
-    void setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp);
+    // 羁绊加成基于基础属性计算后临时叠加，战斗结束清除。
+    void setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp,
+                         int bonusPhysicalDef, int bonusMagicDef,
+                         bool armorBreak, bool magicPenetration, bool shieldField);
     void clearSynergyBuffs();
+    bool hasArmorBreak() const;
+    bool hasMagicPenetration() const;
+    bool hasShieldField() const;
+    int physicalDefenseIgnorePercent() const;
+    int magicDefenseIgnorePercent() const;
+    static void beginSynergyDamageTick(int tick);
+    static void endSynergyDamageTick();
+    static void resetSynergyShieldState();
 
     // 升星：直接提升基础属性（★2=×3.0，★3=×7.0），装备加成由访问接口统一叠加。
     void upgradeToStar(int newStarLevel);
@@ -141,6 +153,11 @@ private:
     int bonusAtk_;           // 羁绊系统临时物理攻击加成
     int bonusMagAtk_;        // 羁绊系统临时法术攻击加成（法师羁绊专用）
     int bonusMaxHp_;         // 羁绊系统临时血量加成
+    int bonusPhysicalDef_;   // 羁绊系统临时物理防御加成
+    int bonusMagicDef_;      // 羁绊系统临时法术防御加成
+    bool armorBreak_;        // 造成物理伤害时忽略目标部分防御
+    bool magicPenetration_;  // 造成法术伤害时忽略目标魔防
+    bool shieldField_;       // 防御羁绊满层：受击计数并触发全队免伤
     int star1Atk_;           // 原始星级1物理攻击（升星乘算用）
     int star1MaxHp_;         // 原始星级1血量（升星乘算用）
     int star1MagAtk_;        // 原始星级1法术攻击（升星乘算用，非法师默认0）

@@ -16,7 +16,10 @@ struct ActiveSynergy {
     std::string name;
     int count;
     int activeThreshold;   // 0 表示未激活
+    int nextThreshold;     // 已满级时等于最高阈值
     std::string buffDescription;
+    std::string classesDescription;
+    std::string detailDescription;
 };
 
 // 羁绊系统：根据棋盘上的英雄职业组合计算并施加/清除羁绊 BUFF。
@@ -33,7 +36,7 @@ public:
                                                           const std::map<int, Unit*>& units);
 
 private:
-    // 统计棋盘上指定职业的玩家单位数量。
+    // 统计棋盘上指定职业的玩家单位星数。
     static int countClassOnBoard(UnitClass cls, const Board& board,
                                  const std::map<int, Unit*>& units);
 };

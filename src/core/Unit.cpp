@@ -12,8 +12,20 @@ namespace core {
 namespace {
 
 const int kBaseAttackSpeed = 100;
+const int kShieldTriggerDamageTicks = 4;
+const int kShieldImmuneTicks = 1;
+
+int ownerIndex(UnitOwner owner) {
+    return owner == UnitOwner::player ? 0 : 1;
+}
 
 }  // namespace
+
+int gCurrentSynergyTick = 0;
+int gShieldDamageTicks[2] = {0, 0};
+int gShieldLastDamageTick[2] = {-1, -1};
+int gShieldImmuneTicks[2] = {0, 0};
+int gShieldActivatedTick[2] = {-1, -1};
 
 Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana,
            UnitClass unitClass)
@@ -32,6 +44,11 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
       bonusAtk_(0),
       bonusMagAtk_(0),
       bonusMaxHp_(0),
+      bonusPhysicalDef_(0),
+      bonusMagicDef_(0),
+      armorBreak_(false),
+      magicPenetration_(false),
+      shieldField_(false),
       star1Atk_(attack),
       star1MaxHp_(maxHp),
       star1MagAtk_(0),
@@ -72,6 +89,11 @@ Unit::Unit(const Unit& other)
       bonusAtk_(other.bonusAtk_),
       bonusMagAtk_(other.bonusMagAtk_),
       bonusMaxHp_(other.bonusMaxHp_),
+      bonusPhysicalDef_(other.bonusPhysicalDef_),
+      bonusMagicDef_(other.bonusMagicDef_),
+      armorBreak_(other.armorBreak_),
+      magicPenetration_(other.magicPenetration_),
+      shieldField_(other.shieldField_),
       star1Atk_(other.star1Atk_),
       star1MaxHp_(other.star1MaxHp_),
       star1MagAtk_(other.star1MagAtk_),
@@ -109,6 +131,11 @@ Unit& Unit::operator=(const Unit& other) {
     bonusAtk_ = other.bonusAtk_;
     bonusMagAtk_ = other.bonusMagAtk_;
     bonusMaxHp_ = other.bonusMaxHp_;
+    bonusPhysicalDef_ = other.bonusPhysicalDef_;
+    bonusMagicDef_ = other.bonusMagicDef_;
+    armorBreak_ = other.armorBreak_;
+    magicPenetration_ = other.magicPenetration_;
+    shieldField_ = other.shieldField_;
     star1Atk_ = other.star1Atk_;
     star1MaxHp_ = other.star1MaxHp_;
     star1MagAtk_ = other.star1MagAtk_;
@@ -194,16 +221,43 @@ void Unit::takeDamage(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
     }
+    const int idx = ownerIndex(owner_);
+    if (gShieldImmuneTicks[idx] > 0) {
+        return;
+    }
     hp_ = std::max(0, hp_ - amount);
+    if (shieldField_) {
+        if (gShieldLastDamageTick[idx] != gCurrentSynergyTick) {
+            gShieldLastDamageTick[idx] = gCurrentSynergyTick;
+            ++gShieldDamageTicks[idx];
+            if (gShieldDamageTicks[idx] >= kShieldTriggerDamageTicks) {
+                gShieldDamageTicks[idx] = 0;
+                gShieldImmuneTicks[idx] = kShieldImmuneTicks;
+                gShieldActivatedTick[idx] = gCurrentSynergyTick;
+            }
+        }
+    }
 }
 
 void Unit::takePhysicalDamage(int rawDmg) {
-    const int net = std::max(1, rawDmg - physicalDef());
+    takePhysicalDamage(rawDmg, 0);
+}
+
+void Unit::takePhysicalDamage(int rawDmg, int defenseIgnorePercent) {
+    const int ignore = std::max(0, std::min(100, defenseIgnorePercent));
+    const int effectiveDef = roundStat(physicalDef() * (100 - ignore) / 100.0);
+    const int net = std::max(1, rawDmg - effectiveDef);
     takeDamage(net);
 }
 
 void Unit::takeMagicDamage(int rawDmg) {
-    const int net = std::max(1, rawDmg - magicDef());
+    takeMagicDamage(rawDmg, 0);
+}
+
+void Unit::takeMagicDamage(int rawDmg, int defenseIgnorePercent) {
+    const int ignore = std::max(0, std::min(100, defenseIgnorePercent));
+    const int effectiveDef = roundStat(magicDef() * (100 - ignore) / 100.0);
+    const int net = std::max(1, rawDmg - effectiveDef);
     takeDamage(net);
 }
 
@@ -273,11 +327,23 @@ std::vector<ItemType> Unit::takeAllEquippedItems() {
     return items;
 }
 
-void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp) {
+void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp,
+                           int bonusPhysicalDef, int bonusMagicDef,
+                           bool armorBreak, bool magicPenetration, bool shieldField) {
+    const int oldMax = maxHp();
     bonusAtk_ = bonusAtk;
     bonusMagAtk_ = bonusMagAtk;
     bonusMaxHp_ = bonusMaxHp;
+    bonusPhysicalDef_ = bonusPhysicalDef;
+    bonusMagicDef_ = bonusMagicDef;
+    armorBreak_ = armorBreak;
+    magicPenetration_ = magicPenetration;
+    shieldField_ = shieldField;
     recalculateCurrentStats();
+    const int newMax = maxHp();
+    if (newMax > oldMax && oldMax > 0 && hp_ > 0) {
+        hp_ = roundStat(static_cast<double>(hp_) / oldMax * newMax);
+    }
     clampHpToCurrentMax();
 }
 
@@ -285,8 +351,39 @@ void Unit::clearSynergyBuffs() {
     bonusAtk_ = 0;
     bonusMagAtk_ = 0;
     bonusMaxHp_ = 0;
+    bonusPhysicalDef_ = 0;
+    bonusMagicDef_ = 0;
+    armorBreak_ = false;
+    magicPenetration_ = false;
+    shieldField_ = false;
     recalculateCurrentStats();
     clampHpToCurrentMax();
+}
+
+bool Unit::hasArmorBreak() const { return armorBreak_; }
+bool Unit::hasMagicPenetration() const { return magicPenetration_; }
+bool Unit::hasShieldField() const { return shieldField_; }
+int Unit::physicalDefenseIgnorePercent() const { return armorBreak_ ? 30 : 0; }
+int Unit::magicDefenseIgnorePercent() const { return magicPenetration_ ? 100 : 0; }
+
+void Unit::beginSynergyDamageTick(int tick) { gCurrentSynergyTick = tick; }
+
+void Unit::endSynergyDamageTick() {
+    for (int i = 0; i < 2; ++i) {
+        if (gShieldImmuneTicks[i] > 0 && gShieldActivatedTick[i] < gCurrentSynergyTick) {
+            --gShieldImmuneTicks[i];
+        }
+    }
+}
+
+void Unit::resetSynergyShieldState() {
+    gCurrentSynergyTick = 0;
+    for (int i = 0; i < 2; ++i) {
+        gShieldDamageTicks[i] = 0;
+        gShieldLastDamageTick[i] = -1;
+        gShieldImmuneTicks[i] = 0;
+        gShieldActivatedTick[i] = -1;
+    }
 }
 
 void Unit::upgradeToStar(int newStarLevel) {
@@ -326,7 +423,11 @@ void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
     const int dc = selfPos.col - tgtPos.col;
     const int r = attackRange();
     if (dr * dr + dc * dc <= r * r) {
-        primaryTarget->takePhysicalDamage(physicalAtk());
+        if (usesMagicAttack()) {
+            primaryTarget->takeMagicDamage(magicAtk(), magicDefenseIgnorePercent());
+        } else {
+            primaryTarget->takePhysicalDamage(physicalAtk(), physicalDefenseIgnorePercent());
+        }
     }
 }
 
@@ -410,8 +511,8 @@ void Unit::recalculateCurrentStats() {
     currentPhysicalAtk_ = roundStat(baseAttack_ + equipPhysAtk + bonusAtk_);
     currentMagicAtk_ = roundStat(baseMagicAtk_ + equipMagAtk + bonusMagAtk_);
     currentMaxHp_ = roundStat(baseMaxHp_ + equipMaxHp + bonusMaxHp_);
-    currentPhysicalDef_ = roundStat(basePhysicalDef_ + equipPhysDef);
-    currentMagicDef_ = roundStat(baseMagicDef_ + equipMagDef);
+    currentPhysicalDef_ = roundStat(basePhysicalDef_ + equipPhysDef + bonusPhysicalDef_);
+    currentMagicDef_ = roundStat(baseMagicDef_ + equipMagDef + bonusMagicDef_);
     currentAttackSpeed_ = roundStat(kBaseAttackSpeed + equipAtkSpeed);
 
     const int rawMaxMana = maxMana_ + equipmentBonusMaxManaFlat();

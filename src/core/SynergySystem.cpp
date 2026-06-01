@@ -1,15 +1,94 @@
 #include "core/SynergySystem.h"
 
+#include <algorithm>
 #include <string>
 
 namespace my_auto_arena {
 namespace core {
 
-// 流程：遍历棋盘格子 ──> 筛玩家单位且匹配职业 ──> 按星级加权累加点数
+namespace {
+
+struct Tier {
+    int threshold;
+    int valueA;
+    int valueB;
+    const char* description;
+};
+
+int roundPercent(int base, int percent) {
+    return static_cast<int>(base * percent / 100.0 + 0.5);
+}
+
+bool isClass(UnitClass cls, UnitClass a) {
+    return cls == a;
+}
+
+bool isClass(UnitClass cls, UnitClass a, UnitClass b) {
+    return cls == a || cls == b;
+}
+
+bool isClass(UnitClass cls, UnitClass a, UnitClass b, UnitClass c) {
+    return cls == a || cls == b || cls == c;
+}
+
+int activeThresholdFor(int count, const Tier* tiers, int tierCount) {
+    int active = 0;
+    for (int i = 0; i < tierCount; ++i) {
+        if (count >= tiers[i].threshold) {
+            active = tiers[i].threshold;
+        }
+    }
+    return active;
+}
+
+int nextThresholdFor(int count, const Tier* tiers, int tierCount) {
+    for (int i = 0; i < tierCount; ++i) {
+        if (count < tiers[i].threshold) {
+            return tiers[i].threshold;
+        }
+    }
+    return tiers[tierCount - 1].threshold;
+}
+
+const Tier* activeTierFor(int count, const Tier* tiers, int tierCount) {
+    const Tier* active = nullptr;
+    for (int i = 0; i < tierCount; ++i) {
+        if (count >= tiers[i].threshold) {
+            active = &tiers[i];
+        }
+    }
+    return active;
+}
+
+std::string detailFromTiers(const Tier* tiers, int tierCount) {
+    std::string text;
+    for (int i = 0; i < tierCount; ++i) {
+        if (!text.empty()) {
+            text += "\n";
+        }
+        text += std::to_string(tiers[i].threshold) + "星: " + tiers[i].description;
+    }
+    return text;
+}
+
+ActiveSynergy makeSynergy(const std::string& name, int count, const Tier* tiers, int tierCount,
+                          const std::string& classes, const std::string& inactiveText) {
+    ActiveSynergy s;
+    s.name = name;
+    s.count = count;
+    s.activeThreshold = activeThresholdFor(count, tiers, tierCount);
+    s.nextThreshold = nextThresholdFor(count, tiers, tierCount);
+    const Tier* tier = activeTierFor(count, tiers, tierCount);
+    s.buffDescription = (tier == nullptr) ? inactiveText : tier->description;
+    s.classesDescription = classes;
+    s.detailDescription = detailFromTiers(tiers, tierCount);
+    return s;
+}
+
+}  // namespace
+
 int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
                                       const std::map<int, Unit*>& units) {
-    // 按星级加权统计：★1=1点，★2=2点，★3=3点。
-    // 例：3个★1=3点(T1激活); 1个★3+1个★1=4点(仍T1); 3个★2=6点(T2激活)。
     int count = 0;
     for (int row = 0; row < board.rows(); ++row) {
         for (int col = 0; col < board.cols(); ++col) {
@@ -23,60 +102,86 @@ int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
             }
             const Unit* u = it->second;
             if (u->owner() == UnitOwner::player && u->unitClass() == cls) {
-                // 升星规则：3×★1→★2，3×★2→★3
-                // 所以 ★2 等效于 3 个★1（3点），★3 等效于 9 个★1（9点）
-                const int starLevel = u->starLevel();
-                const int pts = (starLevel == 3) ? 9 : (starLevel == 2) ? 3 : 1;
-                count += pts;
+                count += std::max(1, std::min(3, u->starLevel()));
             }
         }
     }
     return count;
 }
 
-// 流程：统计各职业加权点数 ──> 计算 T1/T2 加成数值 ──> 遍历棋盘玩家单位 ──> setSynergyBuffs
 void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) {
-    // 统计各职业在棋盘上的玩家单位数量。
-    const int warriors = countClassOnBoard(UnitClass::kWarrior, board, units);
-    const int tanks    = countClassOnBoard(UnitClass::kTank,    board, units);
-    const int archers  = countClassOnBoard(UnitClass::kArcher,  board, units);
-    const int mages    = countClassOnBoard(UnitClass::kMage,    board, units);
-    const int healers  = countClassOnBoard(UnitClass::kHealer,  board, units);
-
-    // ─────────────────────────────────────────────────────────────────
-    // 星级加权羁绊规则（点数：★1=1pt，★2=3pt，★3=9pt）：
-    //   T1 激活阈值 = 3  → 3个★1，或 1个★2，均等效
-    //   T2 激活阈值 = 9  → 3个★2，或 1个★3，均等效
-    // 更高阈值对应更大奖励，鼓励专攻路线并深度投资升星。
-    // ─────────────────────────────────────────────────────────────────
-
-    // 近战羁绊（战士+重甲战士）：T1(3)→ +70 物攻；T2(9)→ +180 物攻 +1000 生命。
-    const int meleeCount = warriors + tanks;
-    int meleeAtkBonus = 0;
-    int meleeHpBonus  = 0;
-    if (meleeCount >= 9) {
-        meleeAtkBonus = 180;
-        meleeHpBonus  = 1000;
-    } else if (meleeCount >= 3) {
-        meleeAtkBonus = 70;
+    Unit::resetSynergyShieldState();
+    for (std::map<int, Unit*>::iterator it = units.begin(); it != units.end(); ++it) {
+        if (it->second != nullptr && it->second->owner() == UnitOwner::player) {
+            it->second->clearSynergyBuffs();
+        }
     }
 
-    // 弓手羁绊（射手）：T1(3)→ +160 ATK；T2(9)→ +400 ATK。
-    int archerAtkBonus = 0;
-    if (archers >= 9)      archerAtkBonus = 400;
-    else if (archers >= 3) archerAtkBonus = 160;
+    const int warriors = countClassOnBoard(UnitClass::kWarrior, board, units);
+    const int tanks = countClassOnBoard(UnitClass::kTank, board, units);
+    const int archers = countClassOnBoard(UnitClass::kArcher, board, units);
+    const int mages = countClassOnBoard(UnitClass::kMage, board, units);
+    const int healers = countClassOnBoard(UnitClass::kHealer, board, units);
 
-    // 法术羁绊（法师）：T1(3)→ +180 ATK；T2(9)→ +450 ATK。
-    int mageAtkBonus = 0;
-    if (mages >= 9)      mageAtkBonus = 450;
-    else if (mages >= 3) mageAtkBonus = 180;
+    const int offenseStars = warriors + archers + mages;
+    const int defenseStars = tanks + healers;
+    const int physicalStars = tanks + warriors + archers;
+    const int magicStars = mages + healers;
 
-    // 圣愈羁绊（治疗师）：T1(3)→全体 +1000 HP；T2(9)→全体 +2500 HP。
-    int healHpBonus = 0;
-    if (healers >= 9)      healHpBonus = 2500;
-    else if (healers >= 3) healHpBonus = 1000;
+    int offenseAtkPercent = 0;
+    if (offenseStars >= 15) offenseAtkPercent = 100;
+    else if (offenseStars >= 11) offenseAtkPercent = 60;
+    else if (offenseStars >= 7) offenseAtkPercent = 25;
+    else if (offenseStars >= 3) offenseAtkPercent = 10;
 
-    // 遍历棋盘上的玩家单位并设置对应羁绊 BUFF。
+    int defenseDefPercent = 0;
+    int defenseHpPercent = 0;
+    bool shieldField = false;
+    if (defenseStars >= 12) {
+        defenseDefPercent = 60;
+        defenseHpPercent = 30;
+        shieldField = true;
+    } else if (defenseStars >= 9) {
+        defenseDefPercent = 50;
+        defenseHpPercent = 20;
+    } else if (defenseStars >= 6) {
+        defenseDefPercent = 20;
+        defenseHpPercent = 10;
+    } else if (defenseStars >= 3) {
+        defenseDefPercent = 10;
+    }
+
+    int physicalAtkPercent = 0;
+    int physicalDefPercent = 0;
+    bool armorBreak = false;
+    if (physicalStars >= 15) {
+        physicalAtkPercent = 40;
+        physicalDefPercent = 20;
+        armorBreak = true;
+    } else if (physicalStars >= 11) {
+        physicalAtkPercent = 40;
+        physicalDefPercent = 20;
+    } else if (physicalStars >= 7) {
+        physicalAtkPercent = 15;
+        physicalDefPercent = 10;
+    } else if (physicalStars >= 3) {
+        physicalAtkPercent = 5;
+        physicalDefPercent = 5;
+    }
+
+    int magicAtkPercent = 0;
+    bool magicPenetration = false;
+    if (magicStars >= 12) {
+        magicAtkPercent = 50;
+        magicPenetration = true;
+    } else if (magicStars >= 9) {
+        magicAtkPercent = 40;
+    } else if (magicStars >= 6) {
+        magicAtkPercent = 20;
+    } else if (magicStars >= 3) {
+        magicAtkPercent = 8;
+    }
+
     for (int row = 0; row < board.rows(); ++row) {
         for (int col = 0; col < board.cols(); ++col) {
             const int occ = board.occupantOnBoard(Position{row, col});
@@ -92,27 +197,47 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
                 continue;
             }
 
-            int bonusAtk    = 0;
+            const UnitClass cls = u->unitClass();
+            int bonusAtk = 0;
             int bonusMagAtk = 0;
-            // 圣愈为全体提供 HP；近战羁绊只给近战单位加 ATK 和 HP。
-            int bonusHp     = healHpBonus;
+            int bonusHp = 0;
+            int bonusPhysDef = 0;
+            int bonusMagDef = 0;
+            bool unitArmorBreak = false;
+            bool unitMagicPenetration = false;
+            bool unitShieldField = false;
 
-            if (u->unitClass() == UnitClass::kWarrior || u->unitClass() == UnitClass::kTank) {
-                bonusAtk = meleeAtkBonus;
-                bonusHp += meleeHpBonus;
-            } else if (u->unitClass() == UnitClass::kArcher) {
-                bonusAtk = archerAtkBonus;
-            } else if (u->unitClass() == UnitClass::kMage) {
-                // 法术羁绊加成走 magicAtk 通道，不污染物理攻击。
-                bonusMagAtk = mageAtkBonus;
+            if (isClass(cls, UnitClass::kWarrior, UnitClass::kArcher, UnitClass::kMage)) {
+                if (u->usesMagicAttack()) {
+                    bonusMagAtk += roundPercent(u->baseMagicAtk(), offenseAtkPercent);
+                } else {
+                    bonusAtk += roundPercent(u->basePhysicalAtk(), offenseAtkPercent);
+                }
+            }
+            if (isClass(cls, UnitClass::kTank, UnitClass::kHealer)) {
+                bonusPhysDef += roundPercent(u->basePhysicalDef(), defenseDefPercent);
+                bonusMagDef += roundPercent(u->baseMagicDef(), defenseDefPercent);
+                bonusHp += roundPercent(u->baseMaxHp(), defenseHpPercent);
+                unitShieldField = shieldField;
+            }
+            if (isClass(cls, UnitClass::kTank, UnitClass::kWarrior, UnitClass::kArcher)) {
+                bonusAtk += roundPercent(u->basePhysicalAtk(), physicalAtkPercent);
+                bonusPhysDef += roundPercent(u->basePhysicalDef(), physicalDefPercent);
+                unitArmorBreak = armorBreak;
+            }
+            if (isClass(cls, UnitClass::kMage, UnitClass::kHealer)) {
+                bonusMagAtk += roundPercent(u->baseMagicAtk(), magicAtkPercent);
+                unitMagicPenetration = magicPenetration;
             }
 
-            u->setSynergyBuffs(bonusAtk, bonusMagAtk, bonusHp);
+            u->setSynergyBuffs(bonusAtk, bonusMagAtk, bonusHp, bonusPhysDef, bonusMagDef,
+                               unitArmorBreak, unitMagicPenetration, unitShieldField);
         }
     }
 }
 
 void SynergySystem::clearBuffs(std::vector<Unit*>& playerUnits) {
+    Unit::resetSynergyShieldState();
     for (std::size_t i = 0; i < playerUnits.size(); ++i) {
         if (playerUnits.at(i) != nullptr) {
             playerUnits.at(i)->clearSynergyBuffs();
@@ -120,90 +245,48 @@ void SynergySystem::clearBuffs(std::vector<Unit*>& playerUnits) {
     }
 }
 
-// 流程：统计各羁绊点数 ──> 按阈值生成 ActiveSynergy 描述 ──> 返回 UI 展示列表
 std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
-                                                               const std::map<int, Unit*>& units) {
-    std::vector<ActiveSynergy> result;
+                                                              const std::map<int, Unit*>& units) {
+    static const Tier kOffenseTiers[4] = {
+        {3, 10, 0, "战士/射手/法师各自 +10% 攻击"},
+        {7, 25, 0, "战士/射手/法师各自 +25% 攻击"},
+        {11, 60, 0, "战士/射手/法师各自 +60% 攻击"},
+        {15, 100, 0, "战士/射手/法师各自 +100% 攻击"}
+    };
+    static const Tier kDefenseTiers[4] = {
+        {3, 10, 0, "重甲战士/治疗师 +10% 物防与法防"},
+        {6, 20, 10, "重甲战士/治疗师 +20% 物防与法防，+10% 生命"},
+        {9, 50, 20, "重甲战士/治疗师 +50% 物防与法防，+20% 生命"},
+        {12, 60, 30, "重甲战士/治疗师 +60% 物防与法防，+30% 生命；受击4tick后全队免伤1tick"}
+    };
+    static const Tier kPhysicalTiers[4] = {
+        {3, 5, 5, "重甲战士/战士/射手 +5% 物攻，+5% 物防"},
+        {7, 15, 10, "重甲战士/战士/射手 +15% 物攻，+10% 物防"},
+        {11, 40, 20, "重甲战士/战士/射手 +40% 物攻，+20% 物防"},
+        {15, 40, 20, "保留11星增益，并获得破甲：物理伤害忽略30%防御"}
+    };
+    static const Tier kMagicTiers[4] = {
+        {3, 8, 0, "法师/治疗师 +8% 法攻"},
+        {6, 20, 0, "法师/治疗师 +20% 法攻"},
+        {9, 40, 0, "法师/治疗师 +40% 法攻"},
+        {12, 50, 0, "法师/治疗师 +50% 法攻；穿透：法术伤害忽略敌方法防"}
+    };
 
     const int warriors = countClassOnBoard(UnitClass::kWarrior, board, units);
-    const int tanks    = countClassOnBoard(UnitClass::kTank,    board, units);
-    const int archers  = countClassOnBoard(UnitClass::kArcher,  board, units);
-    const int mages    = countClassOnBoard(UnitClass::kMage,    board, units);
-    const int healers  = countClassOnBoard(UnitClass::kHealer,  board, units);
-    const int melee    = warriors + tanks;
+    const int tanks = countClassOnBoard(UnitClass::kTank, board, units);
+    const int archers = countClassOnBoard(UnitClass::kArcher, board, units);
+    const int mages = countClassOnBoard(UnitClass::kMage, board, units);
+    const int healers = countClassOnBoard(UnitClass::kHealer, board, units);
 
-    // 近战羁绊（★1=1pt，★2=3pt，★3=9pt；T1=3, T2=9）
-    {
-        ActiveSynergy s;
-        s.name = "近战";
-        s.count = melee;
-        if (melee >= 9) {
-            s.activeThreshold = 9;
-            s.buffDescription = "近战 +180 ATK +1000 HP";
-        } else if (melee >= 3) {
-            s.activeThreshold = 3;
-            s.buffDescription = "近战 +70 ATK";
-        } else {
-            s.activeThreshold = 0;
-            s.buffDescription = "3/9 激活 (已有" + std::to_string(melee) + "点)";
-        }
-        result.push_back(s);
-    }
-
-    // 弓手羁绊（T1=3, T2=9）
-    {
-        ActiveSynergy s;
-        s.name = "弓手";
-        s.count = archers;
-        if (archers >= 9) {
-            s.activeThreshold = 9;
-            s.buffDescription = "弓手 +400 ATK";
-        } else if (archers >= 3) {
-            s.activeThreshold = 3;
-            s.buffDescription = "弓手 +160 ATK";
-        } else {
-            s.activeThreshold = 0;
-            s.buffDescription = "3/9 激活 (已有" + std::to_string(archers) + "点)";
-        }
-        result.push_back(s);
-    }
-
-    // 法术羁绊（T1=3, T2=9）
-    {
-        ActiveSynergy s;
-        s.name = "法术";
-        s.count = mages;
-        if (mages >= 9) {
-            s.activeThreshold = 9;
-            s.buffDescription = "法师 +450 ATK";
-        } else if (mages >= 3) {
-            s.activeThreshold = 3;
-            s.buffDescription = "法师 +180 ATK";
-        } else {
-            s.activeThreshold = 0;
-            s.buffDescription = "3/9 激活 (已有" + std::to_string(mages) + "点)";
-        }
-        result.push_back(s);
-    }
-
-    // 圣愈羁绊（T1=3, T2=9）
-    {
-        ActiveSynergy s;
-        s.name = "圣愈";
-        s.count = healers;
-        if (healers >= 9) {
-            s.activeThreshold = 9;
-            s.buffDescription = "全体 +2500 HP";
-        } else if (healers >= 3) {
-            s.activeThreshold = 3;
-            s.buffDescription = "全体 +1000 HP";
-        } else {
-            s.activeThreshold = 0;
-            s.buffDescription = "3/9 激活 (已有" + std::to_string(healers) + "点)";
-        }
-        result.push_back(s);
-    }
-
+    std::vector<ActiveSynergy> result;
+    result.push_back(makeSynergy("进攻就是最好的防守！", warriors + archers + mages,
+                                 kOffenseTiers, 4, "战士 / 射手 / 法师", "未激活"));
+    result.push_back(makeSynergy("因为太怕痛就全点防御力了", tanks + healers,
+                                 kDefenseTiers, 4, "重甲战士 / 治疗师", "未激活"));
+    result.push_back(makeSynergy("轻轻敲醒沉睡的心灵", tanks + warriors + archers,
+                                 kPhysicalTiers, 4, "重甲战士 / 战士 / 射手", "未激活"));
+    result.push_back(makeSynergy("要用魔法打败魔法", mages + healers,
+                                 kMagicTiers, 4, "法师 / 治疗师", "未激活"));
     return result;
 }
 

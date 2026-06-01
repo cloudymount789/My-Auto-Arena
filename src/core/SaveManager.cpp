@@ -155,8 +155,9 @@ bool SaveManager::load(const std::string& filepath,
         }
         ifs.close();
 
-        // 恢复 FSM 轮次（只重置到 kPrepare 并前进到目标轮）。
+        // 恢复 FSM 轮次（先重置到 kPrepare，支持从高轮次读回低轮次存档）。
         const int round = std::stoi(kv.at("round"));
+        fsm = GameFSM();
         while (fsm.currentRound() < round) {
             fsm.startBattle();
             RoundOutcome dummy;
@@ -171,7 +172,8 @@ bool SaveManager::load(const std::string& filepath,
         // 恢复玩家属性。
         player.setHp(std::stoi(kv.at("player_hp")));
         player.setGold(std::stoi(kv.at("player_gold")));
-        player.setPopulationCap(std::stoi(kv.at("player_pop_cap")));
+        std::map<std::string, std::string>::const_iterator popIt = kv.find("player_pop_cap");
+        player.setPopulationCap(popIt == kv.end() ? 3 : std::stoi(popIt->second));
 
         // 清理旧玩家单位。
         for (std::size_t i = 0; i < playerUnits.size(); ++i) {
@@ -262,10 +264,18 @@ bool SaveManager::load(const std::string& filepath,
 
         // 恢复待装备道具列表。
         pendingItems.clear();
-        const int pendingCount = std::stoi(kv.at("pending_item_count"));
+        std::map<std::string, std::string>::const_iterator pendingCountIt = kv.find("pending_item_count");
+        const int pendingCount = pendingCountIt == kv.end() ? 0 : std::stoi(pendingCountIt->second);
         for (int i = 0; i < pendingCount; ++i) {
             const std::string key = "pending_item" + std::to_string(i);
-            pendingItems.push_back(strToItemType(kv.at(key)));
+            std::map<std::string, std::string>::const_iterator itemIt = kv.find(key);
+            if (itemIt == kv.end()) {
+                continue;
+            }
+            const ItemType item = strToItemType(itemIt->second);
+            if (item != ItemType::kNone) {
+                pendingItems.push_back(item);
+            }
         }
 
         return true;

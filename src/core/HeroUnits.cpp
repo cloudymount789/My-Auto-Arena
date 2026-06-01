@@ -43,7 +43,7 @@ void AshRaiderHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
     (void)units;
     if (primaryTarget != nullptr && primaryTarget->isAlive()) {
         const int skillDmg = percentOfStat(physicalAtk(), 150);
-        primaryTarget->takePhysicalDamage(skillDmg);
+        primaryTarget->takePhysicalDamage(skillDmg, physicalDefenseIgnorePercent());
         primaryTarget->applyStun(2);
     }
     spendAllMana();
@@ -87,7 +87,7 @@ void NightArcherHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         if (!isOnSameLine(selfPos, otherPos, verticalLine)) {
             continue;
         }
-        other->takePhysicalDamage(skillDmg);
+        other->takePhysicalDamage(skillDmg, physicalDefenseIgnorePercent());
     }
     spendAllMana();
 }
@@ -124,7 +124,7 @@ void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& unit
         }
         Unit* other = it->second;
         if (other->isAlive() && other->owner() != owner()) {
-            other->takePhysicalDamage(scaledSkillDamage(220));
+            other->takePhysicalDamage(scaledSkillDamage(220), physicalDefenseIgnorePercent());
         }
     }
     spendAllMana();
@@ -164,7 +164,7 @@ void MistWitchHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units,
         if (dr * dr + dc * dc > rangeSq) {
             continue;
         }
-        other->takeMagicDamage(skillDmg);
+        other->takeMagicDamage(skillDmg, magicDefenseIgnorePercent());
     }
     spendAllMana();
 }

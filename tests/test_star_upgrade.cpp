@@ -225,7 +225,7 @@ TEST(StarUpgradeTest, Star2CanEquipTwoItems) {
 TEST(StarUpgradeTest, EquipBonusDoesNotIncludeSynergy) {
     AshRaiderHero hero(1, UnitOwner::player);
     hero.equipItem(ItemType::kSword);
-    hero.setSynergyBuffs(70, 0, 0);
+    hero.setSynergyBuffs(70, 0, 0, 0, 0, false, false, false);
     const int baseAtk = hero.basePhysicalAtk();
     const int swordBonus = static_cast<int>(baseAtk * 0.15 + 0.5);
     EXPECT_EQ(hero.physicalAtk(), baseAtk + swordBonus + 70);
