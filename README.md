@@ -1,61 +1,349 @@
-# My-Auto-Arena
+# My-Auto-Arena 项目文档
 
-`My-Auto-Arena` 是 `Synera: Synergy Auto-Arena` 的 C++ 课程项目实现。  
-当前版本已完成 **Phase 1（棋盘、备战区、拖拽、Qt GUI）**、**Phase 2（FSM、战斗引擎、BFS 寻路、5 英雄技能、PvE 关卡推进）** 与 **Phase 3（商店经济、人口系统、羁绊系统、升星系统、装备系统、存档/读档、完整 GUI）**。
+`My-Auto-Arena` 是一个基于 C++14 与 Qt6 的自走棋课程项目。项目核心玩法包括棋盘部署、备战区拖拽、PvE 回合推进、自动战斗、英雄技能、商店经济、人口限制、升星、装备、羁绊和存档读档。
 
-## File Tree
+## 1. 基本信息
+
+| 项目 | 内容 |
+|---|---|
+| 姓名 | 蔡若萱 |
+| 学号 | 251220158 |
+| 项目名称 | My-Auto-Arena |
+| 开发语言 | C++14 |
+| GUI 框架 | Qt6 Widgets |
+| 构建工具 | CMake |
+
+### 各阶段完成度
+
+| 阶段 | 完成度 | 说明 |
+|---|---:|---|
+| Phase 1：棋盘、备战区、基础单位与 GUI | 100% | 对照 PA 第 2 章：已实现 8×8 主棋盘、玩家/敌方半场、地块占用规则、8 格备战区、`Unit` 基类、统一 `owner` 区分敌我、`Player` 实体、敌方轮次生成入口、备战区与玩家半场拖拽、非法放置交换/回弹，以及 Qt 棋盘、备战区、血条/蓝条和属性面板展示。 |
+| Phase 2：PvE 战斗流程、状态机、寻路与技能 | 100% | 对照 PA 第 3 章：已实现 `Prepare -> Battle -> Settlement` 三阶段循环、轮次推进、敌方按关卡生成并随轮次增强、单位状态机 `Idle/Moving/Attacking/Casting/Dead`、欧氏距离索敌与平局规则、BFS 绕行与防重叠、攻速蓄力、普攻回蓝、满蓝多态技能、死亡清理和胜负结算。 |
+| Phase 3：商店经济、羁绊、升星、装备、存档和完整 GUI | 100% | 对照 PA 第 4 章：已实现金币奖励/扣血、5 格商店、购买与刷新、备战区落位、人口上限与升级、4 条具备阈值和效果描述的羁绊、3 合 1 升星、装备掉落/穿脱/槽位限制、至少 4 种基础装备并扩展了物攻/法攻/双防/攻速/蓝量装备、文本存档读档，以及 GUI 中的血量、金币、人口、商店、装备、羁绊、星级、轮次和阶段展示。 |
+| Phase 4：扩展功能 | 70% | 对照 PA 第 5 章的扩展方向，已实现远程弹道、技能/攻击/受击特效、敌我双方特效区分、无尽关卡难度膨胀、一键部署、结算弹窗与右侧滚动面板等扩展；尚未接入完整角色美术资源和背景音乐/音效，因此按“有实质扩展但视听资源不完整”记录。 |
+| 测试与验收准备 | 100% | `tests/` 覆盖棋盘、单位、玩家、拖拽、FSM、战斗、寻路、英雄技能、敌人生成、PvE 回合、商店、羁绊、升星、存档和 GUI 坐标映射等模块；另有 `docs/` 中的开发记录、代码分析和验收辅助文档。 |
+
+## 2. 文件树结构
 
 ```text
 .
-├── CMakeLists.txt
+├── CMakeLists.txt                  # 项目构建入口，定义 game_core、GUI 和测试目标
+├── README.md                       # 项目说明与验收文档
+├── AGENTS.md / CLAUDE.md           # AI 辅助开发规则与项目导航说明
+├── PA说明文档.pdf                  # 课程/项目说明文档
 ├── src
-│   ├── main.cpp                   # 控制台演示入口
-│   ├── qt_main.cpp                # Qt GUI 入口
-│   ├── core
-│   │   ├── Tile.h / Tile.cpp              # 单格占用模型
-│   │   ├── Board.h / Board.cpp            # 棋盘与备战区管理
-│   │   ├── Unit.h / Unit.cpp              # 单位基类 + WarriorUnit/MageUnit
-│   │   ├── Player.h / Player.cpp          # 玩家全局状态
-│   │   ├── DragDropHandler.h / .cpp       # 拖拽逻辑层
-│   │   ├── GameFSM.h / GameFSM.cpp        # 三阶段状态机
-│   │   ├── BattleEngine.h / .cpp          # 战斗 Tick 驱动（含移动）
-│   │   ├── Pathfinder.h / Pathfinder.cpp  # BFS 网格寻路
-│   │   ├── HeroUnits.h / HeroUnits.cpp    # 5 种英雄技能（多态）
-│   │   ├── EnemySpawner.h / .cpp          # PvE 敌方生成器
-│   │   └── PvERoundRunner.h / .cpp        # 单轮 PvE 推进与结算
+│   ├── main.cpp                    # 控制台版本入口
+│   ├── qt_main.cpp                 # Qt GUI 版本入口
+│   ├── core                        # 核心游戏逻辑，不依赖 Qt
+│   │   ├── Tile.h / Tile.cpp       # 单个棋盘格的坐标与占用状态
+│   │   ├── Board.h / Board.cpp     # 棋盘和备战区数据结构
+│   │   ├── Unit.h / Unit.cpp       # 单位基类、属性、伤害、蓝量、装备和羁绊加成
+│   │   ├── HeroUnits.h / .cpp      # 5 种英雄类及英雄工厂函数
+│   │   ├── BattleEngine.h / .cpp   # 自动战斗 Tick 驱动与目标选择
+│   │   ├── Pathfinder.h / .cpp     # BFS 网格寻路
+│   │   ├── GameFSM.h / .cpp        # 准备、战斗、结算三阶段状态机
+│   │   ├── DragDropHandler.h / .cpp# 拖拽放置、交换、人口和半场限制
+│   │   ├── EnemySpawner.h / .cpp   # PvE 敌人按轮次生成
+│   │   ├── PvERoundRunner.h / .cpp # 单轮 PvE 战斗与奖励/扣血结算
+│   │   ├── Player.h / .cpp         # 玩家血量、金币、等级、人口和拥有单位
+│   │   ├── Shop.h / .cpp           # 商店刷新、购买、出售价格
+│   │   ├── StarUpgrade.h / .cpp    # 三合一自动升星
+│   │   ├── SynergySystem.h / .cpp  # 羁绊统计、阈值和属性加成
+│   │   ├── Item.h / .cpp           # 装备定义和属性加成
+│   │   └── SaveManager.h / .cpp    # 文本格式存档和读档
 │   └── ui
-│       ├── ConsoleRenderer.h / .cpp       # 控制台渲染器
-│       └── qt
-│           ├── SceneCoordMapper.h / .cpp  # 像素↔逻辑坐标映射
-│           ├── TileGraphicsItem.h / .cpp  # 格子图元
-│           ├── UnitGraphicsItem.h / .cpp  # 单位图元（含鼠标拖拽）
-│           ├── ArenaScene.h / ArenaScene.cpp  # 场景容器与拖拽结果处理
-│           ├── UnitInfoPanel.h / .cpp     # 单位属性面板
-│           └── QtMainWindow.h / .cpp      # 主窗口拼装
+│       ├── ConsoleRenderer.h / .cpp# 控制台棋盘和单位信息输出
+│       └── qt                     # Qt 图形界面层
+│           ├── QtMainWindow.*      # 主窗口，整合棋盘、商店、信息面板等
+│           ├── ArenaScene.*        # 棋盘场景，接收拖拽结果并刷新图元
+│           ├── UnitGraphicsItem.*  # 单位图元和鼠标拖拽事件
+│           ├── TileGraphicsItem.*  # 棋盘格图元
+│           ├── ShopPanel.*         # 商店 UI
+│           ├── UnitInfoPanel.*     # 单位属性、装备、技能和羁绊信息面板
+│           └── SceneCoordMapper.*  # 像素坐标与棋盘/备战区坐标转换
 ├── tests
-│   ├── CMakeLists.txt
-│   ├── test_board.cpp
-│   ├── test_unit.cpp
-│   ├── test_player.cpp
-│   ├── test_drag_drop.cpp
-│   ├── test_console_renderer.cpp
-│   ├── test_scene_coord_mapper.cpp
-│   ├── test_game_fsm.cpp
-│   ├── test_battle_engine.cpp
-│   ├── test_enemy_spawner.cpp
-│   ├── test_pathfinder.cpp
-│   ├── test_hero_skills.cpp
-│   └── test_pve_round_runner.cpp
-└── docs
-    ├── development-plan.md
-    ├── dev_log.md
-    ├── code_analysis.md
-    └── gui_acceptance_phase2.md   # Phase 1+2 GUI 验收操作指南
+│   ├── CMakeLists.txt              # 测试构建配置
+│   ├── test_board.cpp              # 棋盘与备战区测试
+│   ├── test_unit.cpp               # 单位属性、伤害、状态测试
+│   ├── test_battle_engine.cpp      # 战斗 Tick、攻击、胜负测试
+│   ├── test_pathfinder.cpp         # BFS 寻路测试
+│   ├── test_hero_skills.cpp        # 英雄技能测试
+│   ├── test_synergy.cpp            # 羁绊计算测试
+│   ├── test_shop.cpp               # 商店购买/刷新测试
+│   ├── test_star_upgrade.cpp       # 升星测试
+│   ├── test_save.cpp               # 存档读档测试
+│   └── ...                         # 其他 GUI 坐标、拖拽、FSM、PvE 测试
+├── docs                            # 开发记录、验收指南和代码分析
+├── scripts                         # 辅助脚本目录
+└── build / build-qt                # 本地构建产物目录
 ```
 
-## 构建与运行
+核心文件夹说明：
 
-### 核心逻辑与测试（不需要 Qt）
+- `src/core/`：项目最重要的逻辑层，包含游戏规则、战斗、单位、经济、羁绊等；该层不依赖 Qt，便于单元测试。
+- `src/ui/qt/`：图形界面层，负责显示棋盘、单位、商店和操作反馈；它通过调用 `src/core/` 的接口改变游戏状态。
+- `tests/`：单元测试和验收测试，覆盖主要规则，能证明核心逻辑不是只靠 GUI 手动操作。
+- `docs/`：保存开发计划、过程记录、代码分析和验收说明，方便复盘项目实现。
+
+## 3. 核心类和数据结构
+
+### 棋盘与单位
+
+| 类/结构 | 主要功能 |
+|---|---|
+| `Position` | 表示棋盘坐标，包含 `row` 和 `col`。 |
+| `Tile` | 表示单个棋盘格，保存坐标和当前占用单位 ID。 |
+| `Board` | 管理二维棋盘与备战区，提供放置、清空、查询占用、查找单位位置、判断玩家/敌方半场等接口。 |
+| `Unit` | 所有战斗单位的基类，保存生命值、攻击、射程、蓝量、星级、职业、装备、羁绊加成和战斗状态；提供伤害、治疗、回蓝、施法等通用能力。 |
+| `PhysicalAttackUnit` / `MagicalAttackUnit` | 物理/法术攻击中间层，通过 `usesMagicAttack()` 区分普攻伤害类型，减少战斗引擎里的职业判断。 |
+| `WarriorUnit` / `MageUnit` | 基础演示单位，用于继承、多态和测试。 |
+
+### 英雄与战斗
+
+| 类/结构 | 主要功能 |
+|---|---|
+| `AshRaiderHero` | 战士英雄，单体物理爆发，并带有战士职业属性。 |
+| `NightArcherHero` | 射手英雄，远程物理输出，射程更远。 |
+| `CurseHammerHero` | 重甲战士英雄，技能攻击周围相邻单位。 |
+| `MistWitchHero` | 法师英雄，使用法术攻击和范围/高额法术伤害。 |
+| `BonePrayerHero` | 治疗师英雄，技能治疗低血量友方。 |
+| `BattleEngine` | 战斗核心驱动，每个 Tick 完成状态重置、索敌、施法/普攻、死亡清理、移动和胜负判断。 |
+| `BattleEvent` | 记录一次攻击或技能事件，供 Qt GUI 播放不同类型的特效。 |
+| `Pathfinder` | 静态 BFS 寻路类，计算单位下一步应该移动到哪里才能进入攻击范围。 |
+| `EnemySpawner` | 根据当前 PvE 轮次生成敌方单位，并把敌人部署到敌方半场。 |
+| `PvERoundRunner` | 封装一轮 PvE：生成敌人、应用羁绊、驱动战斗、结算金币和生命值。 |
+
+### 玩家、经济与进阶系统
+
+| 类/结构 | 主要功能 |
+|---|---|
+| `Player` | 保存玩家 ID、金币、血量、等级、人口上限和拥有单位 ID 列表。 |
+| `GameFSM` | 管理 `Prepare -> Battle -> Settlement -> Prepare` 的回合状态流转，并控制玩家何时可以操作。 |
+| `DragDropHandler` | 处理从备战区到棋盘、棋盘到棋盘、棋盘到备战区的拖拽，支持交换、非法回弹、半场限制和人口限制。 |
+| `Shop` / `ShopSlot` | 5 格商店系统，支持随机刷新、购买英雄、取消购买、出售价格计算。 |
+| `StarUpgrade` | 自动检测 3 个同名同星英雄，合并成更高星级，并归还被消耗单位的装备。 |
+| `Item` / `ItemDef` | 装备系统，定义装备类型和属性加成。 |
+| `SynergySystem` / `ActiveSynergy` | 统计棋盘上玩家单位的职业星数，按阈值施加攻击、防御、生命、破甲、法穿和护盾场等羁绊效果。 |
+| `SaveManager` / `DeploymentEntry` | 将玩家、回合、棋盘部署、单位、装备等信息保存为文本文件，并可读档恢复。 |
+
+### UI 类
+
+| 类 | 主要功能 |
+|---|---|
+| `ConsoleRenderer` | 输出控制台棋盘、备战区和单位面板，用于早期验收和调试。 |
+| `SceneCoordMapper` | 将 Qt 像素坐标转换为棋盘格/备战区坐标，也能反向计算格子中心点。 |
+| `ArenaScene` | Qt 场景容器，负责棋盘格和单位图元刷新，接收拖拽后调用核心逻辑。 |
+| `UnitGraphicsItem` | 单位图元，处理鼠标按下、移动、释放，实现拖拽效果。 |
+| `TileGraphicsItem` | 棋盘格图元，只负责显示，不抢占鼠标拖拽事件。 |
+| `ShopPanel` | 商店、刷新、购买入口。 |
+| `UnitInfoPanel` | 显示选中单位的属性、装备、技能描述和羁绊信息。 |
+| `QtMainWindow` | GUI 总控窗口，连接场景、商店、玩家状态、按钮和回合推进逻辑。 |
+
+## 4. 算法描述
+
+### 4.1 BFS 寻路算法
+
+寻路由 `Pathfinder::nextStepTowardAttackRange()` 实现。算法输入当前单位位置 `start`、目标位置 `targetPos`、攻击范围 `attackRange` 和棋盘占用状态。
+
+具体流程：
+
+1. 先检查参数是否合法：输出指针不能为空，起点和目标必须在棋盘内，攻击范围必须大于 0。
+2. 从起点开始做 BFS，只向上、下、左、右四个方向扩展。
+3. 扩展时只允许进入空格，已经被其他单位占据的格子不能通过。
+4. 每访问一个格子，就记录它的父节点坐标，用于之后回溯路径。
+5. 如果某个空格到目标的欧氏距离平方 `dr * dr + dc * dc <= attackRange * attackRange`，说明站在这里已经能攻击目标，该格子就是目标可攻击格。
+6. 找到目标可攻击格后，从该格子沿父节点反向回溯到起点，再取路径中的第二个格子作为“下一步”。
+7. 如果没有可达格，返回 `false`，单位本 Tick 原地不动。
+
+这个实现的特点是：每个 Tick 只移动一格，路径选择稳定；BFS 保证找到的是最短步数路径；由于目标格必须为空，单位不会直接走到敌人所在格子上。
+
+### 4.2 目标锁定算法
+
+目标锁定由 `BattleEngine::selectTarget()` 实现。每个存活单位行动前，战斗引擎会在所有敌方单位中选择一个目标。
+
+选择规则：
+
+1. 只考虑存活、属于敌方、并且实际部署在棋盘上的单位。
+2. 优先选择距离最近的敌人，距离使用平方距离 `dr * dr + dc * dc`，避免开根号。
+3. 如果距离相同，优先攻击当前血量更低的敌人。
+4. 如果距离和血量都相同，再按坐标打破平局：列更小者优先；列相同则行更大者优先。
+
+这样做可以让战斗结果可预测、可测试，不会因为遍历顺序或随机因素导致验收时表现不稳定。
+
+### 4.3 战斗 Tick 算法
+
+`BattleEngine::tick()` 是自动战斗的主循环。一次 Tick 的流程如下：
+
+1. 如果战斗已经结束，直接返回。
+2. Tick 计数加一，并清空上一 Tick 的 GUI 事件列表。
+3. 将所有存活单位状态重置为 `kIdle`。
+4. 第一阶段处理施法和普攻：每个单位选择目标，若被眩晕则跳过；若满蓝则调用多态技能；否则如果目标在攻击范围内就普攻。
+5. 清理死亡单位，并判断是否已有一方全灭。
+6. 第二阶段处理移动：仍不在攻击范围内的单位调用 `Pathfinder`，向目标可攻击格移动一步。
+7. 再次清理死亡单位并判断胜负。
+8. 如果超过最大 Tick 数仍未结束，则判定玩家失败，避免死循环。
+
+这里将“攻击/施法”和“移动”拆成两个阶段，是为了避免某个 ID 较小的单位先移动进范围后马上攻击，造成行动顺序不公平。
+
+### 4.4 英雄技能算法
+
+技能入口是 `Unit::castFullManaSkill()` 虚函数。`BattleEngine` 只通过基类指针调用该函数，不需要知道当前单位具体是哪种英雄，具体效果由子类 `override` 实现。
+
+技能类型包括：
+
+- 单体爆发：战士、射手、法师对主要目标造成较高伤害。
+- 相邻范围伤害：重甲战士对周围上下左右相邻格敌人造成伤害。
+- 治疗：治疗师寻找低血量友方进行治疗；没有合适友方时可自愈。
+
+技能伤害/治疗会通过 `scaledSkillDamage()` 根据星级缩放，和升星系统保持一致。
+
+### 4.5 羁绊计算算法
+
+羁绊由 `SynergySystem` 计算。核心思想是“只统计棋盘上玩家已经上阵的单位”，备战区单位不参与羁绊。
+
+计算流程：
+
+1. 遍历棋盘每个格子，找到玩家单位。
+2. 根据单位职业分别统计战士、射手、重甲战士、法师、治疗师的星数。
+3. 星数贡献规则为：1 星贡献 1，2 星贡献 2，3 星贡献 3。
+4. 按组合计算四条羁绊：
+   - `进攻就是最好的防守！`：战士 + 射手 + 法师。
+   - `因为太怕痛就全点防御力了`：重甲战士 + 治疗师。
+   - `轻轻敲醒沉睡的心灵`：重甲战士 + 战士 + 射手。
+   - `要用魔法打败魔法`：法师 + 治疗师。
+5. 根据星数是否达到 3、6、7、9、11、12、15 等阈值，计算当前生效档位。
+6. 对符合羁绊职业范围的单位施加临时属性加成，包括物攻、法攻、物防、法防、生命、破甲、法术穿透和护盾场。
+7. 战斗结束后调用 `clearBuffs()` 清除临时羁绊，避免下一轮重复叠加。
+
+这个算法把“羁绊统计”和“属性施加”放在同一个系统里，但不会永久改写单位基础属性；升星和装备仍然保持独立。
+
+### 4.6 升星算法
+
+`StarUpgrade::tryMergeAll()` 遍历玩家拥有的单位，查找 3 个同名同星级单位。当满足条件时：
+
+1. 保留其中一个单位作为升级后的单位。
+2. 删除另外两个被合并单位，并从棋盘、备战区、玩家拥有列表和 `unitsMap` 中移除。
+3. 被消耗单位穿戴的装备会放回待领取装备列表。
+4. 调用 `Unit::upgradeToStar()` 按星级倍率提升基础属性。
+5. 如果合并后又满足下一次合并条件，可以继续触发。
+
+## 5. 辅助函数说明
+
+| 函数 | 作用 |
+|---|---|
+| `Board::inBounds(Position)` | 判断坐标是否在棋盘范围内，是所有放置、寻路、索敌的基础校验。 |
+| `Board::tileIndex(Position)` | 将二维坐标转换为一维 `tiles_` 下标，封装棋盘内部存储细节。 |
+| `Board::findUnitOnBoard(int unitId)` | 在棋盘上查找指定单位的位置，战斗引擎、技能和死亡清理都会用到。 |
+| `Board::isPlayerHalf(Position)` / `isEnemyHalf(Position)` | 判断格子属于玩家半场还是敌方半场，用于拖拽限制和敌人部署。 |
+| `DragDropHandler::pickUnit()` | 根据拖拽起点从棋盘或备战区取出单位 ID。 |
+| `DragDropHandler::placeUnit()` | 将单位放到棋盘或备战区，隐藏目标位置类型差异。 |
+| `DragDropHandler::checkPlayerConstraints()` | 统一检查玩家半场和人口限制。 |
+| `BattleEngine::distanceSquared()` | 计算平方距离，避免频繁开根号。 |
+| `BattleEngine::inRange()` | 判断攻击者是否能打到目标。 |
+| `BattleEngine::clearDeadUnits()` | 清理死亡单位的棋盘占用，并从当前战斗单位表中移除。 |
+| `BattleEngine::resolveEndState()` | 判断玩家或敌方是否全灭，并生成本轮胜负结果。 |
+| `SynergySystem::countClassOnBoard()` | 统计某职业在棋盘上的总星数。 |
+| `SynergySystem::getActiveSynergies()` | 生成当前羁绊状态列表，供 GUI 展示。 |
+| `SaveManager::unitClassToStr()` / `strToUnitClass()` | 单位职业枚举与字符串互转，用于文本存档。 |
+| `SaveManager::itemTypeToStr()` / `strToItemType()` | 装备枚举与字符串互转，用于文本存档。 |
+| `createHero(HeroType, id, owner)` | 英雄工厂函数，根据枚举创建具体英雄对象，并以 `Unit*` 返回。 |
+| `skillDescriptionForHeroType()` / `skillDescriptionForUnitClass()` | 返回英雄技能描述，供 GUI 信息面板显示。 |
+
+## 6. AI 使用说明
+
+本项目使用了 AI 辅助，但不是把题目丢给 AI 后直接接受结果。我的实际过程更接近“我负责需求拆解、验收判断、规则约束和方向修正，AI 负责生成初稿、补测试、辅助重构和整理文档”。中间也出现过 AI 不读规则、实现偏离计划、数值不合理、GUI 可玩性不足等问题，我需要反复阅读代码、手动运行 GUI、指出 bug，再把开发拉回 PA 文档和自己的工程规则上。
+
+### 6.1 项目规划
+
+项目开始时我没有直接进入写代码，而是先做了几件工程准备：
+
+1. 阅读 PA 指导文档，把阶段一到阶段三的验收要求整理成开发目标，并让 AI 帮我输出 `docs/development-plan.md` 作为后续路线图。
+2. 配置 Cursor / Claude Code 的协作环境，参考了一些包含 rules、skills、hooks 的 AI 工程化工作流，并根据课程要求整理自己的规则，例如 C++ 编码风格、中文开发流程、代码审查和 Git 提交流程。
+3. 要求 AI 每一步开发都先读开发计划和 rules，再按“规划 -> TDD -> 代码审查 -> 提交”的流程推进，而不是直接写一大坨代码。
+4. 将项目拆成几个相对独立的层：`src/core/` 负责游戏规则和单元测试，`src/ui/qt/` 负责 GUI 表现，`docs/` 负责开发记录和验收说明。
+
+实际开发中，我大致按下面的顺序把任务交给 AI 辅助完成：
+
+- 先做棋盘、备战区、`Board`、`Tile`、`Unit`、`Player` 和拖拽逻辑，保证 PA 阶段一能跑起来。
+- 再做 `GameFSM`、`BattleEngine`、`Pathfinder`、英雄多态技能和 PvE 关卡推进，让阶段二从“能摆放”变成“能玩一轮战斗”。
+- 之后加入商店、金币、人口、升星、装备、羁绊、存档读档和 GUI 面板，对齐阶段三的完整游戏循环。
+- 最后根据我手动验收时发现的问题继续扩展：弹道飞行物、技能特效、无尽关卡、一键部署、结算弹窗、右侧栏滚动、数值平衡等。
+
+这个过程并不顺利。初版代码里 AI 有几次明显没有认真读取 rules 和 `docs/development-plan.md`，写出的代码风格偏高级、接口也有点“天马行空”。我排查后发现一部分原因可能是 `.mdc` 规则文件结构和 Cursor 触发方式不稳定，于是后面经常在 prompt 里手动引用 `@.cursor/rules/cpp-coding-style.mdc`、`@.cursor/rules/zh-development-workflow.mdc`、`@.cursor/rules/zh-code-review.mdc` 等文件，强制 AI 先读规则再改代码。中间我还要求过一次从已有错误构建中重构，重新对齐 README、开发日志和代码分析文档。
+
+我自己主要做的事情包括：
+
+- 对照 PA PDF 检查功能边界：例如统一 `Unit` 类型、只用 `owner` 区分敌我、阶段循环、寻路阻挡、羁绊阈值、装备和存档。
+- 手动运行 GUI 验收，发现“只能放置不能开始游戏”“战斗瞬间结束”“死亡判断不停止”“商店购买失败但槽位被标记已售出”“装备卸下血量恢复不合理”等问题，再写成具体 prompt 让 AI 定向修复。
+- 阅读核心代码文件，重点看过 `Unit.h/.cpp`、`BattleEngine.cpp`、`Pathfinder.cpp`、`SynergySystem.cpp`、`SaveManager.cpp`、`QtMainWindow.cpp` 等，确认我能解释对象所有权、状态流转、伤害计算和存档字段。
+- 对我不熟的 C++/Qt 语法做笔记，例如 `virtual/override` 的多态调用、引用成员 `Board&` 的生命周期、`std::map<int, Unit*>` 的指针所有权、Qt 的 signal/slot、`QTimer` 驱动动画、`try-catch` 保护存档读档等。
+- 做游戏策划层面的判断：例如敌方数值太弱/太强时调整膨胀速度，装备从固定值改成基于基础属性的百分比加成，羁绊改成按星数统计而不是一个单位就触发。
+
+因此，AI 在本项目中更像一个会写代码的助手。我负责不断确认“这是不是 PA 要的功能”“这段代码我能不能讲清楚”“这个游戏从玩家角度是否真的能玩”。
+
+### 6.2 AI 辅助核心模块解析一：`BattleEngine`
+
+`BattleEngine` 是 AI 辅助生成后我重点阅读和多次修正的核心模块。最开始我只是要求“实现自动战斗”，但后来发现如果不拆清楚 Tick 流程，很容易出现战斗太快、死亡后不结算、单位移动和攻击顺序不公平等问题，所以我把它当作验收前必须能讲清楚的重点。
+
+首先，`BattleEngine` 不拥有单位内存。它只保存 `Board& board_` 和 `std::map<int, Unit*>& units_` 的引用。这样设计的原因是：玩家单位、敌方单位、GUI 中显示的单位对象可能由外层系统统一管理，如果战斗引擎自己 `delete` 指针，很容易造成重复释放或悬空指针。因此 `clearDeadUnits()` 只负责把死亡单位从棋盘和当前战斗 map 中移除，不负责释放内存。
+
+其次，战斗每个 Tick 分成“攻击/施法阶段”和“移动阶段”。如果把移动和攻击写在同一个循环中，先遍历到的单位可能先移动到攻击范围并立刻出手，后遍历的单位会吃亏。现在的实现先让所有已经能攻击的单位行动，再让不在范围内的单位移动一格，战斗顺序更稳定，也更符合自走棋的感觉。
+
+目标选择由 `selectTarget()` 完成：先找最近敌人，同距离找低血量，再用坐标保证确定性。这个确定性很重要，因为单元测试不能依赖随机目标，否则同一份代码有时通过、有时失败。
+
+攻击时，`tryNormalAttack()` 使用 `attackGauge_` 处理攻速。单位的 `attackSpeed()` 会累积到蓄力条中，蓄力达到 1 才真正攻击一次。攻击类型不在引擎里写职业 if-else，而是调用 `Unit::usesMagicAttack()`，由物理/法术中间层决定走 `takePhysicalDamage()` 还是 `takeMagicDamage()`。这种设计把“单位类型知识”放回单位类里，战斗引擎只关心流程。
+
+最后，`BattleEngine` 还会生成 `BattleEvent`。这个结构不影响战斗结果，只用于 GUI 播放普攻、技能、治疗等特效。也就是说核心逻辑和表现层是分离的：即使不打开 Qt，战斗也能在测试中独立运行。
+
+我在阅读这里时一开始比较纠结的是“为什么移动和攻击不放在一次循环里”，后来通过 GUI 手动看战斗表现才理解：如果同一轮又移动又攻击，遍历顺序会影响战斗结果，玩家看到的也会很怪。把它拆成两阶段后，虽然代码稍长，但更稳定，也更容易解释。
+
+### 6.3 AI 辅助核心模块解析二：`Pathfinder`
+
+`Pathfinder` 负责战斗中的移动。AI 辅助给出了 BFS 的初始思路，我根据项目规则确认了几个关键点。
+
+第一，单位不是寻找“敌人所在格”，而是寻找“能攻击到敌人的空格”。因为棋盘格同一时间只能有一个单位，敌人所在格不能进入。所以 `isGoalCell()` 要同时满足两个条件：该格为空，并且从该格到目标的距离在攻击范围内。
+
+第二，BFS 只扩展四方向，不允许斜向移动。这样和棋盘拖拽、格子显示保持一致，也更容易解释路径。
+
+第三，函数返回的不是完整路径，而是下一步 `outNext`。战斗引擎每 Tick 只让单位移动一格，所以只需要路径中的第二个点。完整路径只在函数内部临时回溯，用完就丢弃。
+
+第四，`visited`、`parentRow`、`parentCol` 三个二维数组共同保证不会重复访问，也能从目标格回溯到起点。若回溯时父节点不存在，说明路径数据异常，函数会返回 `false`。
+
+这个模块的边界行为也比较清楚：起点/目标越界、攻击范围非法、无路可走、输出指针为空时都返回 `false`，调用方不移动单位即可。
+
+这个模块也是我做语法笔记比较多的地方。比如二维 `std::vector` 初始化、`std::queue<Position>` 的 BFS 写法、`std::reverse` 回溯路径，还有为什么函数写成 `static`：因为寻路不需要保存内部状态，战斗引擎每次只把当前棋盘和单位传进去即可。
+
+### 6.4 AI 辅助核心模块解析三：`SynergySystem`
+
+`SynergySystem` 是 AI 辅助整理过阈值表和展示文本的模块，但规则由我根据项目需求确认。
+
+它的核心不是统计“有几个单位”，而是统计“上阵单位贡献了多少星”。例如一个 2 星战士贡献 2 点，一个 3 星法师贡献 3 点。统计只遍历棋盘，不遍历备战区，因此未上阵单位不会激活羁绊。
+
+`applyBuffs()` 开始时会先清除旧羁绊并重置护盾状态，这是为了避免多次进入战斗时属性重复叠加。之后分别统计五种职业星数，再组合成四条羁绊的星数。每条羁绊用阈值决定当前档位，例如进攻羁绊达到 3/7/11/15 星会给不同百分比攻击加成。
+
+加成不是直接永久修改基础属性，而是通过 `Unit::setSynergyBuffs()` 写入临时 bonus 字段。`Unit` 的最终属性读取函数会把基础属性、装备加成和羁绊加成统一计算出来。战斗结束后调用 `clearBuffs()`，单位回到非战斗状态。这样装备、升星和羁绊不会互相污染，调试时也更容易定位属性来源。
+
+`getActiveSynergies()` 负责 UI 展示，它返回 `ActiveSynergy` 列表，包括羁绊名称、当前星数、生效阈值、下一档阈值和描述文本。这样 GUI 不需要重新计算规则，只负责展示核心系统给出的结果。
+
+我在这个模块中做过比较多的人工设计判断。比如一开始羁绊从一个角色就可能有收益，策略性太弱；后来我要求改成 1 星贡献 1 点、2 星贡献 2 点、3 星贡献 3 点，并设置 3/6/7/9/11/12/15 等阈值。这样玩家需要考虑“多上职业”和“升星集中养成”之间的取舍，比较符合自走棋的策略感。
+
+### 6.5 AI 辅助核心模块解析四：装备、升星与属性计算
+
+装备和升星模块是我和 AI 协作中重构最多的部分之一。最早的装备实现比较直接：穿装备时修改属性，卸装备时再试图恢复。这个思路看起来简单，但我手动测试后发现它很容易出错：如果先装备、再升星、再卸装备，就很难知道应该恢复到哪个值。
+
+后来我要求重构成现在这种模型：
+
+1. `Unit` 始终保存基础属性，例如基础物攻、基础法攻、基础生命、基础物防和基础法防。
+2. 升星直接修改这个单位实例的基础属性。
+3. 装备不直接写死进基础属性，而是保存在 `equippedItems_` 向量里。
+4. 每次读取当前属性时，统一根据“基础属性 + 装备百分比加成 + 羁绊临时加成”重新计算。
+5. 卸装备、出售、合并时，只需要移除装备并重新计算，不需要记一堆“原始值”。
+
+这个模块让我意识到 AI 有时会给出“能跑一次”的写法，但游戏系统真正麻烦的是组合情况：穿脱装备、升星、羁绊、存档、出售、合并都会相互影响。这里我花了比较多时间追变量依赖关系，也要求 AI 补充测试，防止修一个 bug 又引入新的属性错乱。
+
+## 7. 构建与运行
+
+### 7.1 构建核心逻辑与测试
 
 ```bash
 cmake -S . -B build
@@ -63,114 +351,33 @@ cmake --build build --config Debug
 ctest --test-dir build --output-on-failure
 ```
 
-### Qt GUI
+### 7.2 运行控制台版本
 
-1. 配置工程：`cmake -S . -B build`（若找不到 Qt，请设置 `CMAKE_PREFIX_PATH` 指向 Qt 6 的 MSVC kit，或将 `Qt\bin` 加入 `PATH`）。
-2. 编译 GUI target：`cmake --build build --config Debug --target my_auto_arena_qt`
-3. 运行：`build\Debug\my_auto_arena_qt.exe`（若缺 DLL，执行 `windeployqt build\Debug\my_auto_arena_qt.exe`）。
+```bash
+build\Debug\my_auto_arena.exe
+```
 
-> 棋盘拖拽由 `UnitGraphicsItem` 捕获鼠标事件 → `ArenaScene` 调用 `DragDropHandler::execute` 执行逻辑放置；详见 `docs/code_analysis.md`。
+### 7.3 运行 Qt GUI 版本
 
-## Core Classes and Data Structures
+如果本机安装了 Qt6，CMake 会自动启用 GUI 目标：
 
-### Phase 1（棋盘与交互层）
+```bash
+cmake -S . -B build
+cmake --build build --config Debug --target my_auto_arena_qt
+build\Debug\my_auto_arena_qt.exe
+```
 
-| 类 | 职责 |
-|---|---|
-| `Tile` | 表示单个棋盘格，维护坐标与占用状态（`place / clear / occupied`）。 |
-| `Board` | 维护 M×N 棋盘网格与备战区槽位；提供放置、清空、占用查询、半场判定、单位坐标检索接口。 |
-| `Unit` | 单位基类，封装通用战斗属性（`hp/maxHp/attack/attackRange/mana/maxMana`）与基础行为；声明 `castFullManaSkill` 多态接口。 |
-| `WarriorUnit` / `MageUnit` | Phase 1 两个演示子类，用于验证继承结构与测试流程。 |
-| `Player` | 玩家全局状态：`gold / hp / level / populationCap / unitIds`；提供 `populationOnBoard` 统计上阵人口。 |
-| `DragDropHandler` | 处理"备战区 ↔ 棋盘"拖拽逻辑；支持空位放置、格间交换、非法目标回弹、原地无操作；扩展版含半场与人口约束。 |
-| `ConsoleRenderer` | 阶段一终端渲染器：输出棋盘、备战区与单位属性面板，与 Qt GUI 并行作为基础验收工具。 |
-| `SceneCoordMapper` | 像素坐标 ↔ 逻辑格子坐标的双向映射，不依赖 Qt，可独立单元测试。 |
-| `TileGraphicsItem` | Qt 格子图元；不接受鼠标输入（`Qt::NoButton`），避免遮挡单位拖拽区域。 |
-| `UnitGraphicsItem` | Qt 单位图元；处理 `mousePressEvent / mouseMoveEvent / mouseReleaseEvent`，拖拽期间跟随光标移动，释放时发出信号。 |
-| `ArenaScene` | Qt 场景容器；接收单位图元拖拽信号，调用 `DragDropHandler::execute`，成功则吸附格心，失败则动画回弹。 |
-| `UnitInfoPanel` | Qt 侧栏面板，显示选中单位的 HP/Mana/ATK/Range。 |
-| `QtMainWindow` | 主窗口：拼装 `ArenaScene`（左）+ `UnitInfoPanel`（右），状态栏显示操作结果。 |
+若运行时提示缺少 Qt DLL，可以执行：
 
-### Phase 2（战斗系统）
+```bash
+windeployqt build\Debug\my_auto_arena_qt.exe
+```
 
-| 类 | 职责 |
-|---|---|
-| `GameFSM` | 三阶段状态机：`kPrepare → kBattle → kSettlement → kPrepare`；维护 `currentRound`、`RoundOutcome`，提供 `canPlayerAct()` 门控。 |
-| `BattleEngine` | 战斗 Tick 驱动：每帧执行索敌→移动→攻击（满蓝施法）→死亡清理→胜负判定；超时兜底。 |
-| `Pathfinder` | BFS 网格寻路：从当前格出发，找到能对目标单位发动攻击的最近可用格，返回路径第一步。 |
-| `AshRaiderHero` | 近战战士：技能对主目标造成 280 点爆发伤害（随升星缩放）。 |
-| `NightArcherHero` | 远程射手（Range=4）：技能对主目标造成 360 点穿透伤害（随升星缩放）。 |
-| `CurseHammerHero` | 坦克：AOE 技能对自身周围 4 相邻格的敌方各造成 220 点伤害（随升星缩放）。 |
-| `MistWitchHero` | 法师（Range=3）：技能对主目标造成 420 点法术伤害（随升星缩放）。 |
-| `BonePrayerHero` | 治疗师（Range=3）：技能为血量最低的友方治疗 600 点；无友方则自愈 500 点（随升星缩放）。 |
-| `EnemySpawner` | PvE 敌方生成器：按轮次静态配置生成敌方单位并部署到敌方半场；第 7 关起按 `pow(1.12, round-6)` 指数膨胀。 |
-| `PvERoundRunner` | 单轮 PvE 完整流程：生成敌军 → 驱动 BattleEngine → 结算金币/扣血 → 清理敌方指针。 |
+## 8. 验收重点提示
 
-### Phase 3（经济与进阶系统）
-
-| 类 | 职责 |
-|---|---|
-| `Shop` | 5 格商店：`randomizeSlots()` 随机生成，`buy()` 扣金创建英雄，`refresh()` 花费 2 金刷新，`sellValue()` 按星级返还金币。 |
-| `SynergySystem` | 羁绊系统：统计棋盘上 4 条命名羁绊的星数（★1=1、★2=2、★3=3），按 3/6/7/9/11/12/15 等阈值提供百分比攻防血量加成、破甲、穿透和护盾场；`getActiveSynergies()` 供 GUI 全量展示。 |
-| `StarUpgrade` | 升星系统：`tryMergeAll()` 遍历玩家单位，发现 3 张同名同星单位时自动合并为更高星级（ATK/HP 按 ★2=3×、★3=7× 缩放）。 |
-| `Item` / `ItemDef` | 装备系统：枚举 4 种装备（铁剑/锁甲/魔纹环/疗愈符），`getItemDef()` 返回属性定义；`Unit::equipItem/unequipItem` 管理单位装备状态。 |
-| `SaveManager` | 存档/读档：`save()` 序列化游戏状态为 key=value 文本文件，`load()` 反序列化恢复；全程用 `try-catch` 保护文件 I/O。 |
-
-## Algorithm Notes
-
-### 格子放置校验（Grid Placement Validation）
-所有放置操作先做边界检查（`Board::inBounds`），再做占用检查（`occupantOnBoard != kEmptySlot`）；越界返回 `kOutOfBounds`，已占用执行交换。
-
-### 拖拽结果分类（Drag-and-Drop Resolution）
-`DragDropHandler::execute` 对拖拽结果统一分类：
-- `kSuccess`：目标空位，直接移动
-- `kSwapped`：目标有单位，双方互换
-- `kInvalidSource`：起点无单位，回弹
-- `kOutOfBounds`：目标越界，回弹
-- `kSameLocation`：原地拖拽，无操作
-- `kNotPlayerHalf`：目标在敌方半场，禁止
-- `kPopulationFull`：上阵人口已满，禁止
-
-### 战斗状态机（Game FSM）
-合法转移路径：`Prepare → Battle → Settlement → Prepare`；非法转移返回 `kIllegalTransition`；游戏结束后所有转移返回 `kGameOver`。`canPlayerAct()` 仅在 `Prepare` 且未 GameOver 时返回 `true`，作为拖拽/商店门控。
-
-### 单位状态机（Unit FSM，S = {Idle, Moving, Attacking, Casting, Dead}）
-每个 `Unit` 持有 `UnitState state_`，由 `BattleEngine` 在每 tick 中更新：
-- tick 开始：所有存活单位设为 `kIdle`
-- 法力充满时施法：设为 `kCasting`
-- 在攻击范围内普攻：设为 `kAttacking`
-- 向目标寻路移动：设为 `kMoving`
-- 血量归零后由 `clearDeadUnits()` 设为 `kDead` 并从战场移除
-
-### 战斗 Tick 流程（Battle Engine）
-每 Tick：
-1. 将所有存活单位状态重置为 `kIdle`
-2. 遍历所有存活单位，选最近敌方目标（并列规则：低血量优先 → 列从左到右 → 行从下到上）
-3. 若满蓝：设 `kCasting`，调用 `castFullManaSkill`
-4. 若目标在攻击距离内：设 `kAttacking`，造成伤害并回蓝
-5. 若目标不在攻击距离内：设 `kMoving`，调用 Pathfinder 向目标移动一格
-6. Tick 末：血量为 0 的单位设 `kDead` 并清出棋盘
-7. 检测一方全灭或超时（最大 5000 Tick）
-
-### BFS 寻路（Pathfinder）
-从移动单位当前格出发，BFS 遍历上下左右四格（仅空格可通行，自身起始格可穿越），寻找欧氏距离 ≤ `attackRange` 且空闲的目标邻近格；找到后回溯路径，返回路径第一步坐标。不可达时返回 `false`，单位原地停留。
-
-### 技能系统（Skills，多态）
-`Unit::castFullManaSkill` 是虚函数，满蓝时由 `BattleEngine` 调用，各子类独立覆写：
-- 单目标爆发（AshRaider、NightArcher、MistWitch）
-- AOE 伤害（CurseHammer，4 相邻格）
-- 治疗（BonePrayer，最低血友方）
-
-### PvE 关卡推进（PvERoundRunner）
-`runRoundBattle` 封装完整一轮 PvE：`EnemySpawner::spawnRound` → `BattleEngine` 驱动至结束 → 按 `LevelConfig` 结算金币/扣血 → `removeEnemyUnits` 清理指针。
-
-### 羁绊计算（SynergySystem）
-羁绊只统计棋盘上的玩家单位星数，1/2/3 星分别贡献 1/2/3 点。四条羁绊保持完整中文名称：
-`进攻就是最好的防守！`、`因为太怕痛就全点防御力了`、`轻轻敲醒沉睡的心灵`、`要用魔法打败魔法`。
-百分比攻击加成只基于单位基础攻击或基础法攻，不吃装备加成；除护盾场全队免伤外，普通增益只给羁绊内成员。UI 在装备栏下方展示全部可激活羁绊、当前星数/下一档和当前增益，悬停显示职业范围与全部阶段效果。
-
-## Helper Functions
-
-- `Board::findUnitOnBoard(unitId)`：在棋盘全局搜索并返回指定单位的 `Position`，用于技能与引擎中的坐标检索。
-- `Board::isPlayerHalf / isEnemyHalf`：半场判定，用于拖拽约束与敌方部署。
-- `Pathfinder::nextStepTowardAttackRange`：静态方法，不持有状态，便于测试与复用。
+- 说明 `src/core/` 与 `src/ui/qt/` 的分层：核心逻辑可独立测试，GUI 只调用核心接口。
+- 演示拖拽部署：单位可以从备战区拖到玩家半场，非法位置会被拒绝。
+- 演示战斗：开始战斗后单位会自动索敌、移动、普攻、满蓝施法，最后进入结算。
+- 演示羁绊：上阵不同职业/星级单位后，信息面板显示当前羁绊星数和效果。
+- 演示升星和装备：购买多个同名英雄可以三合一，装备影响单位属性。
+- 演示存档读档：保存后重新加载，可以恢复回合、玩家、棋盘、单位和装备状态。

@@ -67,7 +67,8 @@ bool SaveManager::save(const std::string& filepath,
                        const Player& player,
                        const Board& board,
                        const std::vector<Unit*>& playerUnits,
-                       const std::vector<ItemType>& pendingItems) {
+                       const std::vector<ItemType>& pendingItems,
+                       const std::vector<DeploymentEntry>* savedDeployment) {
     try {
         std::ofstream ofs(filepath);
         if (!ofs.is_open()) {
@@ -121,6 +122,17 @@ bool SaveManager::save(const std::string& filepath,
             ofs << "pending_item" << i << "=" << itemTypeToStr(pendingItems.at(i)) << "\n";
         }
 
+        if (savedDeployment != nullptr) {
+            ofs << "saved_deployment_count=" << savedDeployment->size() << "\n";
+            for (std::size_t i = 0; i < savedDeployment->size(); ++i) {
+                const DeploymentEntry& entry = savedDeployment->at(i);
+                const std::string prefix = "saved_deployment" + std::to_string(i) + "_";
+                ofs << prefix << "unit_id=" << entry.unitId << "\n";
+                ofs << prefix << "row=" << entry.position.row << "\n";
+                ofs << prefix << "col=" << entry.position.col << "\n";
+            }
+        }
+
         ofs.close();
         return true;
     } catch (...) {
@@ -137,7 +149,8 @@ bool SaveManager::load(const std::string& filepath,
                        Board& board,
                        std::vector<Unit*>& playerUnits,
                        std::map<int, Unit*>& unitsMap,
-                       std::vector<ItemType>& pendingItems) {
+                       std::vector<ItemType>& pendingItems,
+                       std::vector<DeploymentEntry>* savedDeployment) {
     try {
         std::ifstream ifs(filepath);
         if (!ifs.is_open()) {
@@ -275,6 +288,30 @@ bool SaveManager::load(const std::string& filepath,
             const ItemType item = strToItemType(itemIt->second);
             if (item != ItemType::kNone) {
                 pendingItems.push_back(item);
+            }
+        }
+
+        if (savedDeployment != nullptr) {
+            savedDeployment->clear();
+            std::map<std::string, std::string>::const_iterator deploymentCountIt =
+                kv.find("saved_deployment_count");
+            const int deploymentCount =
+                deploymentCountIt == kv.end() ? 0 : std::stoi(deploymentCountIt->second);
+            for (int i = 0; i < deploymentCount; ++i) {
+                const std::string prefix = "saved_deployment" + std::to_string(i) + "_";
+                std::map<std::string, std::string>::const_iterator unitIt =
+                    kv.find(prefix + "unit_id");
+                std::map<std::string, std::string>::const_iterator rowIt =
+                    kv.find(prefix + "row");
+                std::map<std::string, std::string>::const_iterator colIt =
+                    kv.find(prefix + "col");
+                if (unitIt == kv.end() || rowIt == kv.end() || colIt == kv.end()) {
+                    continue;
+                }
+                DeploymentEntry entry;
+                entry.unitId = std::stoi(unitIt->second);
+                entry.position = Position{std::stoi(rowIt->second), std::stoi(colIt->second)};
+                savedDeployment->push_back(entry);
             }
         }
 

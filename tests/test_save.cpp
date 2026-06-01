@@ -173,6 +173,55 @@ TEST(SaveTest, SaveAndLoadStarLevel) {
     std::remove(filepath.c_str());
 }
 
+TEST(SaveTest, SaveAndLoadSavedDeployment) {
+    GameFSM fsm;
+    Player player(1, 10, 100, 1, 4);
+    Board board(8, 8, 8);
+
+    std::vector<Unit*> playerUnits;
+    std::map<int, Unit*> unitsMap;
+
+    Unit* hero = new AshRaiderHero(11, UnitOwner::player);
+    playerUnits.push_back(hero);
+    unitsMap[hero->id()] = hero;
+    player.addUnit(hero->id());
+    board.placeOnBench(hero->id(), 0);
+
+    std::vector<ItemType> pendingItems;
+    std::vector<DeploymentEntry> savedDeployment;
+    DeploymentEntry entry;
+    entry.unitId = hero->id();
+    entry.position = Position{6, 3};
+    savedDeployment.push_back(entry);
+
+    const std::string filepath = "test_save_deployment.txt";
+    ASSERT_TRUE(SaveManager::save(
+        filepath, fsm, player, board, playerUnits, pendingItems, &savedDeployment));
+
+    GameFSM fsmLoad;
+    Player playerLoad(1, 0, 100, 1, 3);
+    Board boardLoad(8, 8, 8);
+    std::vector<Unit*> playerUnitsLoad;
+    std::map<int, Unit*> unitsMapLoad;
+    std::vector<ItemType> pendingLoad;
+    std::vector<DeploymentEntry> deploymentLoad;
+
+    ASSERT_TRUE(SaveManager::load(filepath, fsmLoad, playerLoad, boardLoad,
+                                  playerUnitsLoad, unitsMapLoad, pendingLoad,
+                                  &deploymentLoad));
+
+    ASSERT_EQ(deploymentLoad.size(), static_cast<std::size_t>(1));
+    EXPECT_EQ(deploymentLoad.at(0).unitId, 11);
+    EXPECT_EQ(deploymentLoad.at(0).position.row, 6);
+    EXPECT_EQ(deploymentLoad.at(0).position.col, 3);
+
+    delete playerUnits.at(0);
+    for (std::size_t i = 0; i < playerUnitsLoad.size(); ++i) {
+        delete playerUnitsLoad.at(i);
+    }
+    std::remove(filepath.c_str());
+}
+
 TEST(SaveTest, LoadLegacySingleItemSaveWithoutPendingItems) {
     const std::string filepath = "test_save_legacy.txt";
     {

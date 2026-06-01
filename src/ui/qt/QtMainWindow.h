@@ -54,6 +54,7 @@ private slots:
     void onShopRefresh();
     void onSellUnit(int unitId);
     void onLevelUp();
+    void onDeployFromLast();
     void onSaveGame();
     void onLoadGame();
     void onEquipItem();    // 装备待装备道具到当前选中英雄
@@ -68,6 +69,7 @@ private:
     core::EnemySpawner spawner_;
     core::Shop shop_;
     std::vector<core::ItemType> pendingItems_;  // 已获得尚未装备的道具
+    std::vector<core::DeploymentEntry> savedDeployment_;  // 上一次开战时的玩家部署
     int nextUnitId_;                            // 单位 ID 分配计数器（从 100 开始）
 
     // ── 战斗动画状态 ─────────────────────────────────────────────
@@ -101,6 +103,7 @@ private:
 
     // 控制按钮
     QPushButton* startBattleBtn_;
+    QPushButton* deployFromLastBtn_;
     QPushButton* nextRoundBtn_;
     QPushButton* levelUpBtn_;
     QPushButton* saveBtn_;
@@ -114,6 +117,13 @@ private:
     void updateItemsDisplay();  // 刷新右侧待装备道具面板
     void updateSelectedUnitPanel();
     void recomputeNextUnitId();
+    void captureCurrentDeployment();
+    int applySavedDeployment();
+    bool hasSavedDeployment() const;
+    QString settlementMessage(const core::RoundOutcome& outcome,
+                              const std::vector<core::ItemType>& droppedItems) const;
+    void showSettlementDialog(const core::RoundOutcome& outcome,
+                              const std::vector<core::ItemType>& droppedItems);
     void doSettlement();  // 战斗结束后：结算金币/生命值、清理单位、切换 FSM
 
     bool hasEmptyBenchSlot() const;

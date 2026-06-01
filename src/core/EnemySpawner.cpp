@@ -15,6 +15,26 @@ int scaleStat(int base, int starLevel) {
     return base;
 }
 
+double starHpMultiplier(int starLevel) {
+    return (starLevel >= 2) ? 1.5 : 1.0;
+}
+
+double endlessTargetArmyHp(int round) {
+    return 9000.0 * std::pow(1.12, round - 7);
+}
+
+double plannedArmyHp(const std::vector<SpawnEntry>& entries, const std::vector<EnemyTemplate>& templates) {
+    double total = 0.0;
+    for (std::size_t i = 0; i < entries.size(); ++i) {
+        const SpawnEntry& entry = entries.at(i);
+        if (entry.templateIndex < 0 || entry.templateIndex >= static_cast<int>(templates.size())) {
+            continue;
+        }
+        total += templates.at(entry.templateIndex).hp * starHpMultiplier(entry.starLevel);
+    }
+    return total;
+}
+
 class SpawnedEnemyUnit final : public Unit {
 public:
     SpawnedEnemyUnit(int id, const EnemyTemplate& tpl, int starLevel)
@@ -34,15 +54,15 @@ EnemySpawner::EnemySpawner() {}
 
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 模板顺序：战士 / 射手 / 重甲战士 / 法师 / 治疗师 / 攻城弩
-    // 敌方基础值略低于对应玩家英雄；前5关再通过 statScaleFactor 进一步削弱。
+    // 敌方基础值接近但仍低于对应玩家英雄；难度主要由每关预算曲线控制。
     // 字段顺序：name / hp / atk / range / maxMana / physDef / magDef
     static const std::vector<EnemyTemplate> kTemplates = {
-        {"战士",     1150, 48, 1,  75,  10,  5},  // 0: 轻甲前排
-        {"射手",      900, 46, 4,  75,   5,  5},  // 1: 皮甲远程
-        {"重甲战士", 1900, 38, 1,  90,  40, 12},  // 2: 重甲肉盾
-        {"法师",      800, 30, 3,  70,   5, 22},  // 3: 法术单位
-        {"治疗师",   1000, 22, 3,  80,   5, 15},  // 4: 法系辅助
-        {"攻城弩",   2400, 60, 5, 110,  55, 12},  // 5: BOSS重型机械
+        {"战士",     1300, 54, 1,  75,  18,  6},  // 0: 轻甲前排
+        {"射手",      980, 56, 4,  75,   7,  6},  // 1: 皮甲远程
+        {"重甲战士", 2200, 44, 1,  90,  55, 18},  // 2: 重甲肉盾
+        {"法师",      900, 36, 3,  70,   7, 28},  // 3: 法术单位
+        {"治疗师",   1250, 26, 3,  80,   7, 22},  // 4: 法系辅助
+        {"攻城弩",   2800, 72, 5, 110,  70, 18},  // 5: BOSS重型机械
     };
     return kTemplates;
 }
@@ -58,13 +78,13 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     cfg.winGoldReward = 0;
 
     // ─────────────────────────────────────────────────────────────────────
-    // 前6关：新手曲线 —— 前5关属性大幅削弱，第6关起 BOSS 局开始有压力
-    // 第7关起：使用无尽模板 + scaleStatForRound 指数膨胀
+    // 前6关：新手曲线 —— 前3关教学，4-5关推动玩家买人/升人口，第6关是首个BOSS检验。
+    // 第7关起：用目标总生命预算反推倍率，平滑抵消阵型轮换造成的战力波动。
     // ─────────────────────────────────────────────────────────────────────
 
     // 第1关：2个战士，玩家出发仅有2个英雄，应轻松取胜。
     if (round == 1) {
-        cfg.statScaleFactor = 0.55;
+        cfg.statScaleFactor = 0.53;
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
         cfg.onLosePlayerHpDamage = 5;
@@ -73,7 +93,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第2关：3个混合，射手+战士+战士。
     if (round == 2) {
-        cfg.statScaleFactor = 0.60;
+        cfg.statScaleFactor = 0.62;
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 6}});
@@ -83,7 +103,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第3关：4个，重甲战士+射手+战士+法师。
     if (round == 3) {
-        cfg.statScaleFactor = 0.65;
+        cfg.statScaleFactor = 0.72;
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 1}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 5}});
@@ -94,7 +114,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第4关：5个，重甲战士领队，射手×2+法师+治疗师（均为1星）。
     if (round == 4) {
-        cfg.statScaleFactor = 0.70;
+        cfg.statScaleFactor = 0.84;
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 4}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 6}});
@@ -106,7 +126,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第5关：5个，重甲战士+射手×2+法师×2+治疗师（均为1星）。
     if (round == 5) {
-        cfg.statScaleFactor = 0.75;
+        cfg.statScaleFactor = 0.96;
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 1}});
         cfg.spawnList.push_back(SpawnEntry{1, 1, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{3, 1, Position{0, 5}});
@@ -118,7 +138,7 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
     // 第6关：BOSS局，攻城弩★2领队，重甲战士+战士×2+法师+治疗师。
     if (round == 6) {
-        cfg.statScaleFactor = 0.90;
+        cfg.statScaleFactor = 0.98;
         cfg.spawnList.push_back(SpawnEntry{5, 2, Position{0, 3}});
         cfg.spawnList.push_back(SpawnEntry{2, 1, Position{1, 2}});
         cfg.spawnList.push_back(SpawnEntry{0, 1, Position{1, 1}});
@@ -131,16 +151,12 @@ LevelConfig EnemySpawner::configForRound(int round) const {
     }
 
     // ─────────────────────────────────────────────────────────────────────
-    // 第7关起：无尽模式，使用6关的模板结构，对生命/物攻按指数公式膨胀。
-    // 每3关循环一组阵型（轻量/标准/精英），并且关数越高组内全部升星。
+    // 第7关起：无尽模式。每3关循环一组阵型（轻量/标准/精英），并且关数越高组内全部升星。
+    // 倍率由目标总生命预算反推：第7关约9000总生命，之后每关约+12%，让压力递进但不突刺。
     // ─────────────────────────────────────────────────────────────────────
     // 动态星级：第 7–9 关为 1 星，第 10–12 关为 2 星，第 13 关及以上为 2 星
     const int baseStar = (round >= 13) ? 2 : (round >= 10 ? 2 : 1);
     const int eliteStar = (round >= 10) ? 2 : 1;
-
-    // 每关 17% 指数增长；statScaleFactor 由 spawnRound 读取并应用到模板生命/物攻。
-    const double factor = std::pow(1.17, round - 6);
-    cfg.statScaleFactor = factor;
 
     // 阵型轮换（每3关一个周期）
     const int cycle = ((round - 7) % 3);
@@ -167,6 +183,11 @@ LevelConfig EnemySpawner::configForRound(int round) const {
         cfg.spawnList.push_back(SpawnEntry{0, baseStar,  Position{1, 5}});
         cfg.spawnList.push_back(SpawnEntry{3, baseStar,  Position{0, 5}});
         cfg.spawnList.push_back(SpawnEntry{4, baseStar,  Position{0, 1}});
+    }
+
+    const double armyHp = plannedArmyHp(cfg.spawnList, templates());
+    if (armyHp > 0.0) {
+        cfg.statScaleFactor = endlessTargetArmyHp(round) / armyHp;
     }
 
     // 失败惩罚和金币奖励随关数增长（上限分别为50和30）

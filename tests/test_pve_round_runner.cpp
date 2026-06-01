@@ -19,7 +19,7 @@ using my_auto_arena::core::PvERoundRunner;
 using my_auto_arena::core::RoundOutcome;
 using my_auto_arena::core::UnitOwner;
 
-// 第 1 关生成 2 名削弱后的敌方战士（约 633 生命、26 物攻）。
+// 第 1 关生成 2 名削弱后的敌方战士（约 689 生命、29 物攻）。
 // 2 名 AshRaider（生命=1600，物攻=62，爆发技能）联手应能轻松获胜。
 TEST(PvERoundRunnerTest, Round1PlayerBeatsTwoEnemies) {
     Board board(8, 8, 8);

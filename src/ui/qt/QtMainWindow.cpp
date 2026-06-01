@@ -45,6 +45,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
       populationLabel_(nullptr),
       synergyLabel_(nullptr),
       startBattleBtn_(nullptr),
+      deployFromLastBtn_(nullptr),
       nextRoundBtn_(nullptr),
       levelUpBtn_(nullptr),
       saveBtn_(nullptr),
@@ -155,8 +156,13 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     startBattleBtn_ = new QPushButton("⚔ 开始战斗", controlBar);
     startBattleBtn_->setStyleSheet(btnStyle.arg("#F38BA8"));
 
+    deployFromLastBtn_ = new QPushButton("一键部署", controlBar);
+    deployFromLastBtn_->setEnabled(false);
+    deployFromLastBtn_->setStyleSheet(btnStyle.arg("#A6E3A1"));
+
     nextRoundBtn_ = new QPushButton("▶ 下一轮", controlBar);
     nextRoundBtn_->setEnabled(false);
+    nextRoundBtn_->setVisible(false);
     nextRoundBtn_->setStyleSheet(btnStyle.arg("#89DCEB"));
 
     levelUpBtn_ = new QPushButton("升级人口", controlBar);
@@ -175,6 +181,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     controlLayout->addWidget(populationLabel_);
     controlLayout->addStretch();
     controlLayout->addWidget(levelUpBtn_);
+    controlLayout->addWidget(deployFromLastBtn_);
     controlLayout->addWidget(saveBtn_);
     controlLayout->addWidget(loadBtn_);
     controlLayout->addWidget(startBattleBtn_);
@@ -187,6 +194,7 @@ QtMainWindow::QtMainWindow(QWidget* parent)
     connect(scene_, SIGNAL(unitSelected(int)), this, SLOT(onUnitSelected(int)));
     connect(scene_, SIGNAL(dragResultReady(core::DragResult)), this, SLOT(onDragResult(core::DragResult)));
     connect(startBattleBtn_, SIGNAL(clicked()), this, SLOT(onStartBattle()));
+    connect(deployFromLastBtn_, SIGNAL(clicked()), this, SLOT(onDeployFromLast()));
     connect(nextRoundBtn_, SIGNAL(clicked()), this, SLOT(onNextRound()));
     connect(shopPanel_, SIGNAL(heroPurchased(int)), this, SLOT(onHeroPurchased(int)));
     connect(shopPanel_, SIGNAL(refreshRequested()), this, SLOT(onShopRefresh()));
@@ -275,6 +283,7 @@ void QtMainWindow::onStartBattle() {
         return;
     }
 
+    captureCurrentDeployment();
     fsm_.startBattle();
     scene_->setDragEnabled(false);
     startBattleBtn_->setEnabled(false);
@@ -341,6 +350,8 @@ void QtMainWindow::doSettlement() {
     }
     spawnedEnemies_.clear();
 
+    std::vector<core::ItemType> droppedItems;
+
     // 结算金币 / 玩家生命值。
     if (outcome.playerWon) {
         outcome.goldReward = currentLevelCfg_.winGoldReward;
@@ -355,7 +366,9 @@ void QtMainWindow::doSettlement() {
                 core::ItemType::kRunicShield,  core::ItemType::kSwiftGloves,
                 core::ItemType::kBlueCrystal
             };
-            pendingItems_.push_back(drops[std::rand() % 7]);
+            const core::ItemType droppedItem = drops[std::rand() % 7];
+            pendingItems_.push_back(droppedItem);
+            droppedItems.push_back(droppedItem);
         }
     } else {
         outcome.hpPenalty = currentLevelCfg_.onLosePlayerHpDamage;
@@ -421,18 +434,6 @@ void QtMainWindow::doSettlement() {
 
     updateItemsDisplay();
 
-    if (!pendingItems_.empty()) {
-        statusBar()->showMessage(
-            QString("获得道具: %1 | 点击英雄再点道具按钮装备")
-                .arg(QString::fromStdString(core::getItemDef(pendingItems_.back()).name)));
-    } else if (outcome.playerWon) {
-        statusBar()->showMessage(
-            QString("胜利！获得 %1 金币 | HP: %2").arg(outcome.goldReward).arg(player_.hp()));
-    } else {
-        statusBar()->showMessage(
-            QString("失败！失去 %1 HP | 剩余 HP: %2").arg(outcome.hpPenalty).arg(player_.hp()));
-    }
-
     if (outcome.gameOver) {
         QMessageBox::critical(this, "游戏结束", "玩家血量耗尽，游戏结束！");
         startBattleBtn_->setEnabled(false);
@@ -440,7 +441,158 @@ void QtMainWindow::doSettlement() {
         return;
     }
 
-    nextRoundBtn_->setEnabled(true);
+    statusBar()->showMessage(outcome.playerWon ? "胜利！请在弹窗中进入下一轮" : "失败，请在弹窗中进入下一轮");
+    showSettlementDialog(outcome, droppedItems);
+}
+
+void QtMainWindow::captureCurrentDeployment() {
+    savedDeployment_.clear();
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        const core::Unit* unit = playerUnits_.at(i);
+        if (unit == nullptr) {
+            continue;
+        }
+        const core::Position pos = board_.findUnitOnBoard(unit->id());
+        if (board_.inBounds(pos) && board_.isPlayerHalf(pos)) {
+            core::DeploymentEntry entry;
+            entry.unitId = unit->id();
+            entry.position = pos;
+            savedDeployment_.push_back(entry);
+        }
+    }
+    updateStatusPanel();
+}
+
+bool QtMainWindow::hasSavedDeployment() const {
+    for (std::size_t i = 0; i < savedDeployment_.size(); ++i) {
+        if (unitsMap_.find(savedDeployment_.at(i).unitId) != unitsMap_.end()) {
+            return true;
+        }
+    }
+    return false;
+}
+
+int QtMainWindow::applySavedDeployment() {
+    if (!fsm_.canPlayerAct() || savedDeployment_.empty()) {
+        return 0;
+    }
+
+    std::vector<int> playerIds;
+    for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
+        if (playerUnits_.at(i) != nullptr) {
+            playerIds.push_back(playerUnits_.at(i)->id());
+        }
+    }
+
+    for (std::size_t i = 0; i < playerIds.size(); ++i) {
+        const int unitId = playerIds.at(i);
+        const core::Position pos = board_.findUnitOnBoard(unitId);
+        if (board_.inBounds(pos)) {
+            board_.clearOnBoard(pos);
+        }
+        for (int slot = 0; slot < board_.benchSize(); ++slot) {
+            if (board_.occupantOnBench(slot) == unitId) {
+                board_.clearOnBench(slot);
+                break;
+            }
+        }
+    }
+
+    int deployed = 0;
+    for (std::size_t i = 0; i < savedDeployment_.size(); ++i) {
+        const core::DeploymentEntry& entry = savedDeployment_.at(i);
+        if (deployed >= player_.populationCap()) {
+            break;
+        }
+        if (!board_.inBounds(entry.position) || !board_.isPlayerHalf(entry.position) ||
+            board_.occupantOnBoard(entry.position) != core::Board::kEmptySlot) {
+            continue;
+        }
+        std::map<int, core::Unit*>::iterator it = unitsMap_.find(entry.unitId);
+        if (it == unitsMap_.end() || it->second == nullptr ||
+            it->second->owner() != core::UnitOwner::player) {
+            continue;
+        }
+        if (board_.placeOnBoard(entry.unitId, entry.position)) {
+            ++deployed;
+        }
+    }
+
+    for (std::size_t i = 0; i < playerIds.size(); ++i) {
+        const int unitId = playerIds.at(i);
+        if (board_.inBounds(board_.findUnitOnBoard(unitId))) {
+            continue;
+        }
+        bool alreadyOnBench = false;
+        for (int slot = 0; slot < board_.benchSize(); ++slot) {
+            if (board_.occupantOnBench(slot) == unitId) {
+                alreadyOnBench = true;
+                break;
+            }
+        }
+        if (alreadyOnBench) {
+            continue;
+        }
+        for (int slot = 0; slot < board_.benchSize(); ++slot) {
+            if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
+                board_.placeOnBench(unitId, slot);
+                break;
+            }
+        }
+    }
+
+    return deployed;
+}
+
+QString QtMainWindow::settlementMessage(
+    const core::RoundOutcome& outcome,
+    const std::vector<core::ItemType>& droppedItems) const {
+    QString message;
+    if (outcome.playerWon) {
+        message = QString("赢啦！\n\n获得金币: %1\n").arg(outcome.goldReward);
+    } else {
+        message = QString("本轮失败\n\n损失生命: %1\n剩余 HP: %2\n")
+                      .arg(outcome.hpPenalty)
+                      .arg(player_.hp());
+    }
+
+    if (droppedItems.empty()) {
+        message += "获得装备: 无";
+    } else {
+        message += "获得装备:";
+        for (std::size_t i = 0; i < droppedItems.size(); ++i) {
+            message += "\n";
+            message += QString::fromStdString(core::getItemDef(droppedItems.at(i)).name);
+        }
+    }
+    return message;
+}
+
+void QtMainWindow::showSettlementDialog(
+    const core::RoundOutcome& outcome,
+    const std::vector<core::ItemType>& droppedItems) {
+    QMessageBox dialog(this);
+    dialog.setWindowTitle(outcome.playerWon ? "战斗胜利" : "战斗结算");
+    dialog.setIcon(outcome.playerWon ? QMessageBox::Information : QMessageBox::Warning);
+    dialog.setText(settlementMessage(outcome, droppedItems));
+    QPushButton* nextButton = dialog.addButton("下一轮", QMessageBox::AcceptRole);
+    dialog.setDefaultButton(nextButton);
+    dialog.exec();
+    onNextRound();
+}
+
+void QtMainWindow::onDeployFromLast() {
+    const int deployed = applySavedDeployment();
+    scene_->syncAfterBattle(unitsMap_);
+    scene_->rebuild();
+    refreshPreparationSynergyBuffs();
+    updateStatusPanel();
+    updateItemsDisplay();
+    if (deployed > 0) {
+        statusBar()->showMessage(QString("已复现上一次部署：%1 名英雄上场").arg(deployed), 1800);
+    } else {
+        statusBar()->showMessage("暂无可复现的上一次部署", 1800);
+    }
 }
 
 // 流程：校验阶段 ──> FSM 进入下一轮 ──> 刷新商店 ──> 恢复拖拽与按钮状态
@@ -620,7 +772,7 @@ void QtMainWindow::onSaveGame() {
     if (filepath.isEmpty()) return;
 
     const bool ok = core::SaveManager::save(
-        filepath.toStdString(), fsm_, player_, board_, playerUnits_, pendingItems_);
+        filepath.toStdString(), fsm_, player_, board_, playerUnits_, pendingItems_, &savedDeployment_);
     if (ok) {
         statusBar()->showMessage("存档成功: " + filepath, 2000);
     } else {
@@ -639,7 +791,8 @@ void QtMainWindow::onLoadGame() {
     if (filepath.isEmpty()) return;
 
     const bool ok = core::SaveManager::load(
-        filepath.toStdString(), fsm_, player_, board_, playerUnits_, unitsMap_, pendingItems_);
+        filepath.toStdString(), fsm_, player_, board_, playerUnits_, unitsMap_, pendingItems_,
+        &savedDeployment_);
     if (ok) {
         recomputeNextUnitId();
         scene_->syncAfterBattle(unitsMap_);
@@ -734,6 +887,10 @@ void QtMainWindow::updateStatusPanel() {
         levelUpBtn_->setText("人口已满");
         levelUpBtn_->setEnabled(false);
     }
+
+    if (deployFromLastBtn_ != nullptr) {
+        deployFromLastBtn_->setEnabled(fsm_.canPlayerAct() && hasSavedDeployment());
+    }
 }
 
 // 流程：查询全部羁绊 ──> 拼接星数/下一等级/当前增益 ──> 设置悬停详情
@@ -816,7 +973,7 @@ void QtMainWindow::updateItemsDisplay() {
             " border-radius: 3px; padding: 3px 6px; }"
             "QPushButton:disabled { background-color: #1E1E2E; color: #6C7086; }");
         btn->setEnabled(canEquip);
-        btn->setToolTip(QString("物攻+%1%%  法攻+%2%%  物防+%3%%  魔防+%4%%  生命+%5%%  攻速+%6%%  法力%7")
+        btn->setToolTip(QString("物攻+%1%  法攻+%2%  物防+%3%  魔防+%4%  生命+%5%  攻速+%6%  法力%7")
             .arg(def.bonusPhysAtkPercent).arg(def.bonusMagAtkPercent)
             .arg(def.bonusPhysDefensePercent).arg(def.bonusMagDefensePercent)
             .arg(def.bonusMaxHpPercent).arg(def.bonusAttackSpeedPercent)

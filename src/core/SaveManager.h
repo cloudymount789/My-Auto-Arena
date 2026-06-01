@@ -14,6 +14,11 @@
 namespace my_auto_arena {
 namespace core {
 
+struct DeploymentEntry {
+    int unitId;
+    Position position;
+};
+
 // 存档管理器：将游戏状态序列化为文本文件（key=value 格式），支持存档与读档。
 class SaveManager {
 public:
@@ -23,7 +28,8 @@ public:
                      const Player& player,
                      const Board& board,
                      const std::vector<Unit*>& playerUnits,
-                     const std::vector<ItemType>& pendingItems);
+                     const std::vector<ItemType>& pendingItems,
+                     const std::vector<DeploymentEntry>* savedDeployment = nullptr);
 
     // 从文件读取并恢复游戏状态；成功返回 true，失败返回 false。
     static bool load(const std::string& filepath,
@@ -32,7 +38,8 @@ public:
                      Board& board,
                      std::vector<Unit*>& playerUnits,
                      std::map<int, Unit*>& unitsMap,
-                     std::vector<ItemType>& pendingItems);
+                     std::vector<ItemType>& pendingItems,
+                     std::vector<DeploymentEntry>* savedDeployment = nullptr);
 
 private:
     // 将职业枚举转换为字符串（用于序列化）。
