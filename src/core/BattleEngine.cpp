@@ -24,7 +24,12 @@ BattleEvent::SkillVfxType skillVfxTypeForClass(UnitClass cls) {
 }  // namespace
 
 BattleEngine::BattleEngine(Board& board, std::map<int, Unit*>& units)
-    : board_(board), units_(units), tickCount_(0), finished_(false), outcome_{false, 0, 0, false}, defeatHpPenalty_(4) {}
+    : board_(board),
+      units_(units),
+      tickCount_(0),
+      finished_(false),
+      outcome_{false, 0, 0, false, 0, 0, 0, 0},
+      defeatHpPenalty_(4) {}
 
 void BattleEngine::setDefeatHpPenalty(int hpPenalty) { defeatHpPenalty_ = hpPenalty; }
 

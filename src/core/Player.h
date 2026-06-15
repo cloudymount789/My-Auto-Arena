@@ -19,11 +19,13 @@ public:
     int hp() const;
     int level() const;
     int populationCap() const;
+    int winStreak() const;
 
     void setGold(int gold);
     void setHp(int hp);
     void setLevel(int level);
     void setPopulationCap(int populationCap);
+    void setWinStreak(int winStreak);
 
     bool ownsUnit(int unitId) const;
     void addUnit(int unitId);
@@ -38,6 +40,7 @@ private:
     int hp_;
     int level_;
     int populationCap_;
+    int winStreak_;
     std::vector<int> unitIds_;
 };
 

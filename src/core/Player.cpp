@@ -7,7 +7,7 @@ namespace my_auto_arena {
 namespace core {
 
 Player::Player(int id, int gold, int hp, int level, int populationCap)
-    : id_(id), gold_(gold), hp_(hp), level_(level), populationCap_(populationCap) {
+    : id_(id), gold_(gold), hp_(hp), level_(level), populationCap_(populationCap), winStreak_(0) {
     if (id < 0 || gold < 0 || hp <= 0 || level <= 0 || populationCap <= 0) {
         throw std::invalid_argument("Invalid player initial values.");
     }
@@ -19,6 +19,7 @@ Player::Player(const Player& other)
       hp_(other.hp_),
       level_(other.level_),
       populationCap_(other.populationCap_),
+      winStreak_(other.winStreak_),
       unitIds_(other.unitIds_) {}
 
 int Player::id() const { return id_; }
@@ -26,6 +27,7 @@ int Player::gold() const { return gold_; }
 int Player::hp() const { return hp_; }
 int Player::level() const { return level_; }
 int Player::populationCap() const { return populationCap_; }
+int Player::winStreak() const { return winStreak_; }
 
 // 流程：校验金币非负 ──> 写入玩家金币字段
 void Player::setGold(int gold) {
@@ -57,6 +59,14 @@ void Player::setPopulationCap(int populationCap) {
         throw std::invalid_argument("Population cap must be positive.");
     }
     populationCap_ = populationCap;
+}
+
+// 流程：校验连胜数非负 ──> 写入玩家连胜字段
+void Player::setWinStreak(int winStreak) {
+    if (winStreak < 0) {
+        throw std::invalid_argument("Win streak cannot be negative.");
+    }
+    winStreak_ = winStreak;
 }
 
 // 流程：过滤非法单位 ID ──> 在线性拥有列表中查找 ──> 返回是否拥有

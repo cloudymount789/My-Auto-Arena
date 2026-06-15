@@ -15,6 +15,7 @@
 #include "core/BattleEngine.h"
 #include "core/Board.h"
 #include "core/DragDropHandler.h"
+#include "core/EconomySystem.h"
 #include "core/EnemySpawner.h"
 #include "core/GameFSM.h"
 #include "core/HeroUnits.h"

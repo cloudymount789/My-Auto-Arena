@@ -10,9 +10,13 @@ enum class PhaseTransitionResult { kSuccess, kAlreadyInPhase, kIllegalTransition
 
 struct RoundOutcome {
     bool playerWon;
-    int goldReward;
+    int goldReward;        // 本轮实际获得金币总数（基础奖励 + 利息 + 连胜奖励）
     int hpPenalty;
     bool gameOver;  // 玩家血量归零时由 PvERoundRunner 设置为 true，调用方据此调用 GameFSM::setGameOver()
+    int baseGoldReward;
+    int interestGold;
+    int winStreakBonus;
+    int winStreak;
 };
 
 class GameFSM {

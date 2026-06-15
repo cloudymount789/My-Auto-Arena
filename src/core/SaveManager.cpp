@@ -80,6 +80,7 @@ bool SaveManager::save(const std::string& filepath,
         ofs << "player_hp=" << player.hp() << "\n";
         ofs << "player_gold=" << player.gold() << "\n";
         ofs << "player_pop_cap=" << player.populationCap() << "\n";
+        ofs << "player_win_streak=" << player.winStreak() << "\n";
         ofs << "unit_count=" << playerUnits.size() << "\n";
 
         // 序列化每个玩家英雄的状态。
@@ -187,6 +188,8 @@ bool SaveManager::load(const std::string& filepath,
         player.setGold(std::stoi(kv.at("player_gold")));
         std::map<std::string, std::string>::const_iterator popIt = kv.find("player_pop_cap");
         player.setPopulationCap(popIt == kv.end() ? 3 : std::stoi(popIt->second));
+        std::map<std::string, std::string>::const_iterator streakIt = kv.find("player_win_streak");
+        player.setWinStreak(streakIt == kv.end() ? 0 : std::stoi(streakIt->second));
 
         // 清理旧玩家单位。
         for (std::size_t i = 0; i < playerUnits.size(); ++i) {

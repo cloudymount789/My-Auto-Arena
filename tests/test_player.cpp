@@ -16,12 +16,20 @@ TEST(PlayerTest, CreatesWithExpectedDefaults) {
     EXPECT_EQ(player.hp(), 100);
     EXPECT_EQ(player.level(), 1);
     EXPECT_EQ(player.populationCap(), 3);
+    EXPECT_EQ(player.winStreak(), 0);
 }
 
 TEST(PlayerTest, ThrowsForInvalidConstruction) {
     EXPECT_THROW(Player(-1, 10, 100, 1, 3), std::invalid_argument);
     EXPECT_THROW(Player(1, -1, 100, 1, 3), std::invalid_argument);
     EXPECT_THROW(Player(1, 10, 0, 1, 3), std::invalid_argument);
+}
+
+TEST(PlayerTest, StoresWinStreak) {
+    Player player(1, 10, 100, 1, 3);
+    player.setWinStreak(3);
+    EXPECT_EQ(player.winStreak(), 3);
+    EXPECT_THROW(player.setWinStreak(-1), std::invalid_argument);
 }
 
 TEST(PlayerTest, AddsAndRemovesUnits) {

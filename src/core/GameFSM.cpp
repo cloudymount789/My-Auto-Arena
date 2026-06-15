@@ -6,7 +6,11 @@ namespace my_auto_arena {
 namespace core {
 
 GameFSM::GameFSM()
-    : phase_(GamePhase::kPrepare), round_(1), gameOver_(false), hasOutcome_(false), lastOutcome_{false, 0, 0} {}
+    : phase_(GamePhase::kPrepare),
+      round_(1),
+      gameOver_(false),
+      hasOutcome_(false),
+      lastOutcome_{false, 0, 0, false, 0, 0, 0, 0} {}
 
 GameFSM::GameFSM(const GameFSM& other)
     : phase_(other.phase_),

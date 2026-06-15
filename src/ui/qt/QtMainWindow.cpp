@@ -354,8 +354,13 @@ void QtMainWindow::doSettlement() {
 
     // 结算金币 / 玩家生命值。
     if (outcome.playerWon) {
-        outcome.goldReward = currentLevelCfg_.winGoldReward;
-        player_.setGold(player_.gold() + outcome.goldReward);
+        const core::EconomyBreakdown economy =
+            core::EconomySystem::settleRound(player_, true, currentLevelCfg_.winGoldReward);
+        outcome.goldReward = economy.totalGold;
+        outcome.baseGoldReward = economy.baseGold;
+        outcome.interestGold = economy.interestGold;
+        outcome.winStreakBonus = economy.winStreakBonus;
+        outcome.winStreak = economy.winStreak;
         outcome.gameOver = false;
 
         // 胜利时随机给予一件道具（轮次 >= 2 才开始掉落）。
@@ -371,6 +376,13 @@ void QtMainWindow::doSettlement() {
             droppedItems.push_back(droppedItem);
         }
     } else {
+        const core::EconomyBreakdown economy =
+            core::EconomySystem::settleRound(player_, false, currentLevelCfg_.winGoldReward);
+        outcome.goldReward = economy.totalGold;
+        outcome.baseGoldReward = economy.baseGold;
+        outcome.interestGold = economy.interestGold;
+        outcome.winStreakBonus = economy.winStreakBonus;
+        outcome.winStreak = economy.winStreak;
         outcome.hpPenalty = currentLevelCfg_.onLosePlayerHpDamage;
         const int newHp = player_.hp() - outcome.hpPenalty;
         player_.setHp(newHp < 0 ? 0 : newHp);
@@ -547,15 +559,22 @@ int QtMainWindow::applySavedDeployment() {
     return deployed;
 }
 
-// 流程：根据胜负生成基础结算文案 ──> 追加掉落装备列表 ──> 返回弹窗文本
+// 流程：根据胜负生成经济结算文案 ──> 追加掉落装备列表 ──> 返回弹窗文本
 QString QtMainWindow::settlementMessage(
     const core::RoundOutcome& outcome,
     const std::vector<core::ItemType>& droppedItems) const {
     QString message;
     if (outcome.playerWon) {
-        message = QString("赢啦！\n\n获得金币: %1\n").arg(outcome.goldReward);
+        message = QString("赢啦！\n\n获得金币: %1\n基础奖励: %2\n利息: %3\n连胜奖励: %4\n当前连胜: %5\n")
+                      .arg(outcome.goldReward)
+                      .arg(outcome.baseGoldReward)
+                      .arg(outcome.interestGold)
+                      .arg(outcome.winStreakBonus)
+                      .arg(outcome.winStreak);
     } else {
-        message = QString("本轮失败\n\n损失生命: %1\n剩余 HP: %2\n")
+        message = QString("本轮失败\n\n获得金币: %1\n利息: %2\n损失生命: %3\n剩余 HP: %4\n")
+                      .arg(outcome.goldReward)
+                      .arg(outcome.interestGold)
                       .arg(outcome.hpPenalty)
                       .arg(player_.hp());
     }

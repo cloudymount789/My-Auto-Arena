@@ -39,6 +39,9 @@ TEST(PvERoundRunnerTest, Round1PlayerBeatsTwoEnemies) {
     const RoundOutcome outcome = PvERoundRunner::runRoundBattle(board, player, units, 1, spawner, nextId);
 
     EXPECT_TRUE(outcome.playerWon);
-    // 第 1 关胜利奖励 4 金币；初始 10 金币 → 合计 14。
-    EXPECT_EQ(player.gold(), 14);
+    // 第 1 关基础奖励 4 金币，初始 10 金币产生 1 金币利息；合计 15。
+    EXPECT_EQ(outcome.baseGoldReward, 4);
+    EXPECT_EQ(outcome.interestGold, 1);
+    EXPECT_EQ(outcome.winStreakBonus, 0);
+    EXPECT_EQ(player.gold(), 15);
 }

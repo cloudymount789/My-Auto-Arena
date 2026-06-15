@@ -15,6 +15,7 @@ add_library(game_core
     src/core/Board.cpp
     src/core/Unit.cpp
     src/core/Player.cpp
+    src/core/EconomySystem.cpp
     src/core/GameFSM.cpp
     src/core/BattleEngine.cpp
     src/core/Pathfinder.cpp

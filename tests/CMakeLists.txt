@@ -11,6 +11,7 @@ add_executable(core_tests
     test_board.cpp
     test_unit.cpp
     test_player.cpp
+    test_economy_system.cpp
     test_game_fsm.cpp
     test_battle_engine.cpp
     test_pathfinder.cpp

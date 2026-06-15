@@ -1,6 +1,7 @@
 #include "core/PvERoundRunner.h"
 
 #include "core/BattleEngine.h"
+#include "core/EconomySystem.h"
 #include "core/Unit.h"
 
 namespace my_auto_arena {
@@ -26,10 +27,20 @@ RoundOutcome PvERoundRunner::runRoundBattle(Board& board, Player& player, std::m
 
     RoundOutcome outcome = engine.outcome();
     if (outcome.playerWon) {
-        outcome.goldReward = cfg.winGoldReward;
-        player.setGold(player.gold() + outcome.goldReward);
+        const EconomyBreakdown economy = EconomySystem::settleRound(player, true, cfg.winGoldReward);
+        outcome.goldReward = economy.totalGold;
+        outcome.baseGoldReward = economy.baseGold;
+        outcome.interestGold = economy.interestGold;
+        outcome.winStreakBonus = economy.winStreakBonus;
+        outcome.winStreak = economy.winStreak;
         outcome.gameOver = false;
     } else {
+        const EconomyBreakdown economy = EconomySystem::settleRound(player, false, cfg.winGoldReward);
+        outcome.goldReward = economy.totalGold;
+        outcome.baseGoldReward = economy.baseGold;
+        outcome.interestGold = economy.interestGold;
+        outcome.winStreakBonus = economy.winStreakBonus;
+        outcome.winStreak = economy.winStreak;
         outcome.hpPenalty = cfg.onLosePlayerHpDamage;
         const int nextHp = player.hp() - outcome.hpPenalty;
         player.setHp(nextHp < 0 ? 0 : nextHp);

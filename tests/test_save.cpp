@@ -27,6 +27,7 @@ TEST(SaveTest, SaveAndLoadRoundTrip) {
     // 准备原始状态
     GameFSM fsm;
     Player player(1, 15, 80, 1, 4);
+    player.setWinStreak(2);
     Board board(8, 8, 8);
 
     std::vector<Unit*> playerUnits;
@@ -70,6 +71,7 @@ TEST(SaveTest, SaveAndLoadRoundTrip) {
     EXPECT_EQ(playerLoad.hp(), 80);
     EXPECT_EQ(playerLoad.gold(), 15);
     EXPECT_EQ(playerLoad.populationCap(), 4);
+    EXPECT_EQ(playerLoad.winStreak(), 2);
 
     // 验证单位数量
     EXPECT_EQ(playerUnitsLoad.size(), static_cast<std::size_t>(2));
@@ -251,6 +253,7 @@ TEST(SaveTest, LoadLegacySingleItemSaveWithoutPendingItems) {
                                   playerUnitsLoad, unitsMapLoad, pendingLoad));
     ASSERT_EQ(playerUnitsLoad.size(), static_cast<std::size_t>(1));
     EXPECT_EQ(playerLoad.populationCap(), 3);
+    EXPECT_EQ(playerLoad.winStreak(), 0);
     EXPECT_EQ(playerUnitsLoad.at(0)->equippedItem(), ItemType::kSword);
     EXPECT_TRUE(pendingLoad.empty());
 
