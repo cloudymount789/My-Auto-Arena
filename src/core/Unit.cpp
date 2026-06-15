@@ -27,6 +27,7 @@ int gShieldLastDamageTick[2] = {-1, -1};
 int gShieldImmuneTicks[2] = {0, 0};
 int gShieldActivatedTick[2] = {-1, -1};
 
+// 流程：接收基础属性 ──> 初始化基础/当前属性缓存 ──> 校验参数 ──> 统一重算最终属性并回满血
 Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int attackRange, int maxMana,
            UnitClass unitClass)
     : id_(id),
@@ -73,6 +74,7 @@ Unit::Unit(int id, std::string name, UnitOwner owner, int maxHp, int attack, int
     hp_ = currentMaxHp_;
 }
 
+// 流程：逐字段复制基础属性/装备/羁绊/当前缓存 ──> 得到与来源单位状态一致的新对象
 Unit::Unit(const Unit& other)
     : id_(other.id_),
       name_(other.name_),
@@ -112,6 +114,7 @@ Unit::Unit(const Unit& other)
       currentMaxMana_(other.currentMaxMana_),
       currentAttackSpeed_(other.currentAttackSpeed_) {}
 
+// 流程：自赋值保护 ──> 逐字段覆盖本对象状态 ──> 返回当前对象引用
 Unit& Unit::operator=(const Unit& other) {
     if (this == &other) {
         return *this;
@@ -180,6 +183,7 @@ bool Unit::isStunned() const { return stunTicksRemaining_ > 0; }
 
 int Unit::stunTicksRemaining() const { return stunTicksRemaining_; }
 
+// 流程：过滤无效眩晕与死亡单位 ──> 仅在新眩晕更长时覆盖剩余 tick
 void Unit::applyStun(int ticks) {
     if (ticks <= 0 || !isAlive()) {
         return;
@@ -206,6 +210,7 @@ int Unit::baseAttackSpeed() const { return kBaseAttackSpeed; }
 UnitClass Unit::unitClass() const { return unitClass_; }
 int Unit::starLevel() const { return starLevel_; }
 const std::vector<ItemType>& Unit::equippedItems() const { return equippedItems_; }
+// 流程：兼容旧接口 ──> 无装备返回 kNone ──> 有装备返回第一个槽位
 ItemType Unit::equippedItem() const {
     if (equippedItems_.empty()) {
         return ItemType::kNone;
@@ -217,6 +222,7 @@ int Unit::equipSlotCount() const { return starLevel_; }
 UnitState Unit::state() const { return state_; }
 void Unit::setState(UnitState s) { state_ = s; }
 
+// 流程：过滤无效伤害/死亡单位 ──> 检查护盾免伤 ──> 扣血 ──> 按阵营累计护盾触发计数
 void Unit::takeDamage(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
@@ -243,6 +249,7 @@ void Unit::takePhysicalDamage(int rawDmg) {
     takePhysicalDamage(rawDmg, 0);
 }
 
+// 流程：限制防御忽略百分比 ──> 计算有效物防与净伤害 ──> 交给通用 takeDamage 扣血
 void Unit::takePhysicalDamage(int rawDmg, int defenseIgnorePercent) {
     const int ignore = std::max(0, std::min(100, defenseIgnorePercent));
     const int effectiveDef = roundStat(physicalDef() * (100 - ignore) / 100.0);
@@ -254,6 +261,7 @@ void Unit::takeMagicDamage(int rawDmg) {
     takeMagicDamage(rawDmg, 0);
 }
 
+// 流程：限制防御忽略百分比 ──> 计算有效魔防与净伤害 ──> 交给通用 takeDamage 扣血
 void Unit::takeMagicDamage(int rawDmg, int defenseIgnorePercent) {
     const int ignore = std::max(0, std::min(100, defenseIgnorePercent));
     const int effectiveDef = roundStat(magicDef() * (100 - ignore) / 100.0);
@@ -261,6 +269,7 @@ void Unit::takeMagicDamage(int rawDmg, int defenseIgnorePercent) {
     takeDamage(net);
 }
 
+// 流程：过滤无效回蓝与死亡单位 ──> 增加法力 ──> 不超过当前最大法力
 void Unit::gainMana(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
@@ -268,6 +277,7 @@ void Unit::gainMana(int amount) {
     mana_ = std::min(maxMana(), mana_ + amount);
 }
 
+// 流程：过滤无效治疗与死亡单位 ──> 增加生命 ──> 不超过当前最大生命
 void Unit::heal(int amount) {
     if (amount <= 0 || !isAlive()) {
         return;
@@ -277,6 +287,7 @@ void Unit::heal(int amount) {
 
 void Unit::spendAllMana() { mana_ = 0; }
 
+// 流程：重算装备/羁绊后的最终属性 ──> 生命回满 ──> 清空蓝量与眩晕状态
 void Unit::resetToFull() {
     recalculateCurrentStats();
     hp_ = maxHp();
@@ -284,6 +295,7 @@ void Unit::resetToFull() {
     stunTicksRemaining_ = 0;
 }
 
+// 流程：校验装备类型 ──> 有空槽则追加、满槽则替换首槽 ──> 重算属性 ──> 按最大生命变化等比修正当前血量
 void Unit::equipItem(ItemType item) {
     if (item == ItemType::kNone) {
         return;
@@ -308,6 +320,7 @@ void Unit::equipItem(ItemType item) {
 
 void Unit::unequipItem() { unequipItemAt(0); }
 
+// 流程：校验槽位 ──> 从装备列表移除 ──> 重算最终属性 ──> 限制当前血蓝不超过新上限
 void Unit::unequipItemAt(int slotIndex) {
     if (slotIndex < 0 || slotIndex >= static_cast<int>(equippedItems_.size())) {
         return;
@@ -318,6 +331,7 @@ void Unit::unequipItemAt(int slotIndex) {
     clampManaToCurrentMax();
 }
 
+// 流程：复制当前装备作为返回值 ──> 清空装备槽 ──> 重算属性并夹紧血蓝 ──> 返回卸下列表
 std::vector<ItemType> Unit::takeAllEquippedItems() {
     std::vector<ItemType> items = equippedItems_;
     equippedItems_.clear();
@@ -327,6 +341,7 @@ std::vector<ItemType> Unit::takeAllEquippedItems() {
     return items;
 }
 
+// 流程：保存旧最大生命 ──> 写入各类羁绊加成/标记 ──> 重算属性 ──> 最大生命提升时等比抬高当前血量
 void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp,
                            int bonusPhysicalDef, int bonusMagicDef,
                            bool armorBreak, bool magicPenetration, bool shieldField) {
@@ -347,6 +362,7 @@ void Unit::setSynergyBuffs(int bonusAtk, int bonusMagAtk, int bonusMaxHp,
     clampHpToCurrentMax();
 }
 
+// 流程：清零所有羁绊数值与特殊标记 ──> 重算最终属性 ──> 夹紧当前生命
 void Unit::clearSynergyBuffs() {
     bonusAtk_ = 0;
     bonusMagAtk_ = 0;
@@ -368,6 +384,7 @@ int Unit::magicDefenseIgnorePercent() const { return magicPenetration_ ? 100 : 0
 
 void Unit::beginSynergyDamageTick(int tick) { gCurrentSynergyTick = tick; }
 
+// 流程：遍历双方阵营免伤计时 ──> 只在触发 tick 之后递减 ──> 让护盾至少覆盖完整 1 tick
 void Unit::endSynergyDamageTick() {
     for (int i = 0; i < 2; ++i) {
         if (gShieldImmuneTicks[i] > 0 && gShieldActivatedTick[i] < gCurrentSynergyTick) {
@@ -376,6 +393,7 @@ void Unit::endSynergyDamageTick() {
     }
 }
 
+// 流程：重置当前羁绊 tick ──> 清空双方受击计数/上次受击 tick/免伤剩余时间/触发 tick
 void Unit::resetSynergyShieldState() {
     gCurrentSynergyTick = 0;
     for (int i = 0; i < 2; ++i) {
@@ -386,6 +404,7 @@ void Unit::resetSynergyShieldState() {
     }
 }
 
+// 流程：根据目标星级选倍率 ──> 缩放基础攻血与防御/法攻 ──> 更新星级 ──> 重算属性并回满血
 void Unit::upgradeToStar(int newStarLevel) {
     double factor = (newStarLevel == 2) ? 3.0 : 7.0;
     baseAttack_ = static_cast<int>(star1Atk_ * factor);
@@ -410,6 +429,7 @@ int Unit::scaledSkillDamage(int baseDamage) const {
     return baseDamage;
 }
 
+// 流程：校验目标与双方坐标 ──> 判断是否在圆形射程内 ──> 按普攻类型走物理或法术伤害通道
 void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
     if (primaryTarget == nullptr || !primaryTarget->isAlive()) {
         return;
@@ -431,6 +451,7 @@ void Unit::performAttackInRange(Board& board, Unit* primaryTarget) {
     }
 }
 
+// 流程：基类默认技能不产生效果 ──> 标记参数已使用 ──> 清空法力，供未重写子类保持安全行为
 void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)board;
     (void)units;
@@ -438,6 +459,7 @@ void Unit::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* pr
     spendAllMana();
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础物攻百分比累加装备物攻加成
 int Unit::equipmentBonusPhysAtk() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -447,6 +469,7 @@ int Unit::equipmentBonusPhysAtk() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础法攻百分比累加装备法攻加成
 int Unit::equipmentBonusMagAtk() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -456,6 +479,7 @@ int Unit::equipmentBonusMagAtk() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础物防百分比累加装备物防加成
 int Unit::equipmentBonusPhysDef() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -465,6 +489,7 @@ int Unit::equipmentBonusPhysDef() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础魔防百分比累加装备魔防加成
 int Unit::equipmentBonusMagDef() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -474,6 +499,7 @@ int Unit::equipmentBonusMagDef() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础生命百分比累加装备生命加成
 int Unit::equipmentBonusMaxHp() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -483,6 +509,7 @@ int Unit::equipmentBonusMaxHp() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 读取装备定义 ──> 按基础攻速百分比累加装备攻速加成
 int Unit::equipmentBonusAttackSpeed() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -492,6 +519,7 @@ int Unit::equipmentBonusAttackSpeed() const {
     return total;
 }
 
+// 流程：遍历装备槽 ──> 累加固定最大法力修正值 ──> 返回蓝量上限的装备修正
 int Unit::equipmentBonusMaxManaFlat() const {
     int total = 0;
     for (std::size_t i = 0; i < equippedItems_.size(); ++i) {
@@ -500,6 +528,7 @@ int Unit::equipmentBonusMaxManaFlat() const {
     return total;
 }
 
+// 流程：先计算所有装备加成 ──> 基础属性+装备+羁绊得到当前属性缓存 ──> 单独处理法力下限
 void Unit::recalculateCurrentStats() {
     const int equipPhysAtk = equipmentBonusPhysAtk();
     const int equipMagAtk = equipmentBonusMagAtk();
@@ -537,6 +566,7 @@ void Unit::setBaseMagicDef(int v) {
     recalculateCurrentStats();
 }
 
+// 流程：读取当前最大生命 ──> 当前血量高于上限则压回上限 ──> 低于0则归零
 void Unit::clampHpToCurrentMax() {
     const int currentMaxHp = maxHp();
     if (hp_ > currentMaxHp) {
@@ -547,6 +577,7 @@ void Unit::clampHpToCurrentMax() {
     }
 }
 
+// 流程：当前蓝量高于最大法力则压回上限 ──> 低于0则归零
 void Unit::clampManaToCurrentMax() {
     if (mana_ > maxMana()) {
         mana_ = maxMana();

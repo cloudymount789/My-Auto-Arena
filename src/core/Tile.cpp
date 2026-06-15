@@ -16,6 +16,7 @@ bool Tile::occupied() const { return occupied_; }
 
 int Tile::occupantId() const { return occupantId_; }
 
+// 流程：拒绝非法 ID 或已占用格子 ──> 标记占用 ──> 记录单位 ID
 bool Tile::place(int unitId) {
     if (occupied_ || unitId < 0) {
         return false;

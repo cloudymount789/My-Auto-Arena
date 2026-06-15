@@ -13,6 +13,7 @@ int percentOfStat(int stat, int percent) {
     return std::max(1, stat * percent / 100);
 }
 
+// 流程：根据直线方向选择比较列或行 ──> 判断目标是否与自身在同一直线上
 bool isOnSameLine(const Position& selfPos, const Position& unitPos, bool verticalLine) {
     if (verticalLine) {
         return unitPos.col == selfPos.col;
@@ -101,6 +102,7 @@ CurseHammerHero::CurseHammerHero(int id, UnitOwner owner)
 
 CurseHammerHero::CurseHammerHero(const CurseHammerHero& other) : PhysicalAttackUnit(other) {}
 
+// 流程：定位自身 ──> 遍历上下左右4格 ──> 找到敌方单位 ──> 造成随星级缩放的物理伤害 ──> 清空法力
 void CurseHammerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
     const Position selfPos = board.findUnitOnBoard(id());
@@ -178,6 +180,7 @@ BonePrayerHero::BonePrayerHero(int id, UnitOwner owner)
 
 BonePrayerHero::BonePrayerHero(const BonePrayerHero& other) : MagicalAttackUnit(other) {}
 
+// 流程：计算治疗量 ──> 定位自身 ──> 遍历友方单位 ──> 在射程内则治疗（自身未上棋盘时只治疗自己）──> 清空法力
 void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units, Unit* primaryTarget) {
     (void)primaryTarget;
     const int healAmount = std::max(1, static_cast<int>(maxHp() * 0.15));
@@ -207,6 +210,7 @@ void BonePrayerHero::castFullManaSkill(Board& board, std::map<int, Unit*>& units
     spendAllMana();
 }
 
+// 流程：switch 英雄类型 ──> 返回对应技能说明文本 ──> 未知类型返回兜底文案
 const char* skillDescriptionForHeroType(HeroType type) {
     switch (type) {
         case HeroType::kWarrior:
@@ -224,6 +228,7 @@ const char* skillDescriptionForHeroType(HeroType type) {
     }
 }
 
+// 流程：switch 单位职业 ──> 转调对应英雄类型说明 ──> 未知职业返回兜底文案
 const char* skillDescriptionForUnitClass(UnitClass cls) {
     switch (cls) {
         case UnitClass::kWarrior: return skillDescriptionForHeroType(HeroType::kWarrior);
@@ -235,6 +240,7 @@ const char* skillDescriptionForUnitClass(UnitClass cls) {
     }
 }
 
+// 流程：switch 英雄类型 ──> new 对应派生类英雄 ──> 未知类型抛异常避免生成非法单位
 Unit* createHero(HeroType type, int id, UnitOwner owner) {
     switch (type) {
         case HeroType::kWarrior: return new AshRaiderHero(id, owner);

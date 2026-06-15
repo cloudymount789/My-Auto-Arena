@@ -16,6 +16,7 @@ Shop::Shop(const Shop& other) {
     }
 }
 
+// 流程：校验槽位下标 ──> 非法抛异常 ──> 返回指定商店槽只读引用
 const ShopSlot& Shop::slotAt(int index) const {
     if (index < 0 || index >= kSlotCount) {
         throw std::out_of_range("商店槽位索引越界");
@@ -23,6 +24,7 @@ const ShopSlot& Shop::slotAt(int index) const {
     return slots_[index];
 }
 
+// 流程：检查金币是否足够 ──> 扣刷新费用 ──> 重新随机所有槽位
 void Shop::refresh(int& playerGold) {
     if (playerGold < kRefreshCost) {
         return;
@@ -31,6 +33,7 @@ void Shop::refresh(int& playerGold) {
     randomizeSlots();
 }
 
+// 流程：校验槽位范围与售出状态 ──> 检查玩家金币 ──> 返回能否购买
 bool Shop::canBuy(int slotIndex, int playerGold) const {
     if (slotIndex < 0 || slotIndex >= kSlotCount) {
         return false;
@@ -38,6 +41,7 @@ bool Shop::canBuy(int slotIndex, int playerGold) const {
     return !slots_[slotIndex].sold && playerGold >= kHeroCost;
 }
 
+// 流程：校验购买条件 ──> 扣金币并标记槽位售出 ──> 创建对应英雄实例返回
 Unit* Shop::buy(int slotIndex, int& playerGold, int newUnitId) {
     if (!canBuy(slotIndex, playerGold)) {
         return nullptr;
@@ -53,6 +57,7 @@ void Shop::cancelSlotSale(int slotIndex) {
     }
 }
 
+// 流程：按星级映射出售价格 ──> 3星及以上按4金 ──> 其他默认1金
 int Shop::sellValue(int starLevel) {
     // star1=1金，star2=2金，star3=4金。
     if (starLevel == 2) return 2;

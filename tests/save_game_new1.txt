@@ -1,0 +1,25 @@
+# Synera Auto-Arena 存档
+round=3
+player_hp=100
+player_gold=13
+player_pop_cap=2
+unit_count=2
+unit0_id=1
+unit0_name=战士
+unit0_class=warrior
+unit0_star=1
+unit0_item_count=0
+unit0_loc=board
+unit0_row=4
+unit0_col=3
+unit1_id=2
+unit1_name=射手
+unit1_class=archer
+unit1_star=2
+unit1_item_count=0
+unit1_loc=board
+unit1_row=5
+unit1_col=3
+pending_item_count=2
+pending_item0=ring
+pending_item1=sword

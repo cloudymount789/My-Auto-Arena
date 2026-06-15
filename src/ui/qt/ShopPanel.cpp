@@ -70,6 +70,7 @@ void ShopPanel::updateDisplay(const core::Shop& shop, int playerGold) {
     }
 }
 
+// 流程：从 sender 取被点击按钮 ──> 读取槽位索引属性 ──> 发出购买请求信号
 void ShopPanel::onSlotClicked() {
     // 通过 sender() 获取点击的槽位按钮，读取其 slotIndex 属性。
     QPushButton* btn = qobject_cast<QPushButton*>(sender());

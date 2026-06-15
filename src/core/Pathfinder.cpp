@@ -21,6 +21,7 @@ bool canEnterCell(const Board& board, Position cell) {
     return board.occupantOnBoard(cell) == Board::kEmptySlot;
 }
 
+// 流程：校验候选格在棋盘内 ──> 必须为空格 ──> 再判断该格是否进入攻击范围
 bool isGoalCell(const Board& board, Position cell, Position targetPos, int attackRange) {
     if (!board.inBounds(cell)) {
         return false;

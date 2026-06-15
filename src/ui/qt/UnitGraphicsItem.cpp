@@ -29,6 +29,7 @@ UnitGraphicsItem::UnitGraphicsItem(int unitId, const QString& name, int hp, int 
 
 int UnitGraphicsItem::unitId() const { return unitId_; }
 
+// 流程：写入最新生命/法力数值 ──> 调用 update 触发重绘血条与蓝条
 void UnitGraphicsItem::setStats(int hp, int maxHp, int mana, int maxMana) {
     hp_ = hp;
     maxHp_ = maxHp;

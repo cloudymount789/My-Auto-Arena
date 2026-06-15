@@ -73,6 +73,7 @@ PhaseTransitionResult GameFSM::startNextRound() {
     return PhaseTransitionResult::kSuccess;
 }
 
+// 流程：检查是否已有结算结果 ──> 未结算则抛逻辑错误 ──> 已结算返回最近一轮 outcome 引用
 const RoundOutcome& GameFSM::lastOutcome() const {
     if (!hasOutcome_) {
         throw std::logic_error("lastOutcome() called before any round has been settled; check hasOutcome() first.");

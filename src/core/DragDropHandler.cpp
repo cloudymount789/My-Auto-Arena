@@ -3,6 +3,7 @@
 namespace my_auto_arena {
 namespace core {
 
+// 流程：构造棋盘位置对象 ──> 写入 row/col ──> benchIndex 置为无效值
 DragLocation DragLocation::fromBoard(int row, int col) {
     DragLocation location;
     location.type = kBoard;
@@ -12,6 +13,7 @@ DragLocation DragLocation::fromBoard(int row, int col) {
     return location;
 }
 
+// 流程：构造备战区位置对象 ──> 写入 benchIndex ──> row/col 置为无效值
 DragLocation DragLocation::fromBench(int index) {
     DragLocation location;
     location.type = kBench;
@@ -72,6 +74,7 @@ DragResult DragDropHandler::execute(const DragLocation& from, const DragLocation
     return DragResult::kSwapped;
 }
 
+// 流程：按位置类型读取棋盘或备战区占用 ──> 返回单位 ID 或空槽标记
 int DragDropHandler::pickUnit(const DragLocation& location) const {
     if (location.type == DragLocation::kBoard) {
         return board_.occupantOnBoard(location.boardPos);
@@ -79,6 +82,7 @@ int DragDropHandler::pickUnit(const DragLocation& location) const {
     return board_.occupantOnBench(location.benchIndex);
 }
 
+// 流程：按位置类型放入棋盘或备战区 ──> 返回底层 Board 放置结果
 bool DragDropHandler::placeUnit(int unitId, const DragLocation& location) {
     if (location.type == DragLocation::kBoard) {
         return board_.placeOnBoard(unitId, location.boardPos);
@@ -86,6 +90,7 @@ bool DragDropHandler::placeUnit(int unitId, const DragLocation& location) {
     return board_.placeOnBench(unitId, location.benchIndex);
 }
 
+// 流程：按位置类型清理棋盘或备战区占位 ──> 备战区以外类型按备战区下标处理
 void DragDropHandler::clearUnit(const DragLocation& location) {
     if (location.type == DragLocation::kBoard) {
         board_.clearOnBoard(location.boardPos);
@@ -94,6 +99,7 @@ void DragDropHandler::clearUnit(const DragLocation& location) {
     }
 }
 
+// 流程：按位置类型校验棋盘坐标或备战区下标 ──> 返回位置是否可用于拖放
 bool DragDropHandler::isValidLocation(const DragLocation& location) const {
     if (location.type == DragLocation::kBoard) {
         return board_.inBounds(location.boardPos);
@@ -101,6 +107,7 @@ bool DragDropHandler::isValidLocation(const DragLocation& location) const {
     return location.benchIndex >= 0 && location.benchIndex < board_.benchSize();
 }
 
+// 流程：先比较位置类型 ──> 棋盘位置比较 row/col ──> 备战区位置比较 slot
 bool DragDropHandler::isSameLocation(const DragLocation& from, const DragLocation& to) const {
     if (from.type != to.type) {
         return false;

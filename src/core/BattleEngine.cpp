@@ -9,6 +9,7 @@ namespace core {
 
 namespace {
 
+// 流程：根据施法者职业选择 GUI 技能特效类型 ──> 未覆盖职业使用默认弹体特效
 BattleEvent::SkillVfxType skillVfxTypeForClass(UnitClass cls) {
     switch (cls) {
         case UnitClass::kWarrior: return BattleEvent::SkillVfxType::kStunSingle;
@@ -141,6 +142,7 @@ void BattleEngine::tick() {
 
 bool BattleEngine::isFinished() const { return finished_; }
 
+// 流程：检查攻击者/目标有效性与距离 ──> 按攻击类型结算伤害 ──> 回蓝并记录攻击事件
 bool BattleEngine::tryNormalAttack(Unit* attacker, Unit* target, Position attackerPos, Position targetPos) {
     if (attacker == nullptr || target == nullptr || !attacker->isAlive() || !target->isAlive()) {
         return false;
@@ -221,6 +223,7 @@ Unit* BattleEngine::selectTarget(const Unit& attacker) const {
     return best;
 }
 
+// 流程：计算双方行列差 ──> 使用距离平方与射程平方比较 ──> 返回是否可攻击
 bool BattleEngine::inRange(const Unit& attacker, Position attackerPos, Position targetPos) const {
     if (!board_.inBounds(attackerPos) || !board_.inBounds(targetPos)) {
         return false;

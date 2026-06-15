@@ -65,6 +65,7 @@ ArenaScene::ArenaScene(core::Board& board, core::Player& player, std::map<int, c
     connect(vfxTimer_, SIGNAL(timeout()), this, SLOT(onVfxTick()));
 }
 
+// 流程：按单位状态创建图元 ──> 连接拖拽/点击信号 ──> 加入场景与 unitItems_ 索引
 UnitGraphicsItem* ArenaScene::createUnitItem(core::Unit* unit) {
     const bool isEnemy = (unit->owner() == core::UnitOwner::enemy);
     UnitGraphicsItem* item =
@@ -79,6 +80,7 @@ UnitGraphicsItem* ArenaScene::createUnitItem(core::Unit* unit) {
     return item;
 }
 
+// 流程：跳过已存在图元 ──> 创建单位图元 ──> 按逻辑位置换算中心点 ──> 居中摆放并显示
 void ArenaScene::addUnitItem(core::Unit* unit) {
     if (unitItems_.find(unit->id()) != unitItems_.end()) {
         return;
@@ -120,6 +122,7 @@ void ArenaScene::clearVfxItems() {
     activePulses_.clear();
 }
 
+// 流程：按固定棋盘偏移与格子尺寸 ──> 将 row/col 换算为格子中心像素坐标
 QPointF ArenaScene::tilePixelCenter(int row, int col) const {
     // 布局与构造函数一致：左边距 20px，格子 64px。
     const double cx = 20.0 + col * 64.0 + 32.0;
@@ -505,6 +508,7 @@ void ArenaScene::syncAfterBattle(const std::map<int, core::Unit*>& unitsMap) {
 
 void ArenaScene::setDragEnabled(bool enabled) { dragEnabled_ = enabled; }
 
+// 流程：在单位 map 中查找 ID ──> 找到返回只读指针 ──> 未找到返回 nullptr
 const core::Unit* ArenaScene::unitById(int unitId) const {
     std::map<int, core::Unit*>::const_iterator it = unitsMap_.find(unitId);
     if (it != unitsMap_.end()) {
@@ -635,6 +639,7 @@ void ArenaScene::syncUnitPositions() {
     }
 }
 
+// 流程：创建回弹动画 ──> 从当前拖拽位置移动到起始位置 ──> 动画结束后自动释放
 void ArenaScene::snapBack(UnitGraphicsItem* item) {
     QPropertyAnimation* animation = new QPropertyAnimation(item, "pos", item);
     animation->setDuration(200);
@@ -643,6 +648,7 @@ void ArenaScene::snapBack(UnitGraphicsItem* item) {
     animation->start(QAbstractAnimation::DeleteWhenStopped);
 }
 
+// 流程：若存在高亮格则恢复默认样式 ──> 清空 highlightedTile_ 指针
 void ArenaScene::clearTileHighlight() {
     if (highlightedTile_ != nullptr) {
         highlightedTile_->setHighlighted(false);

@@ -46,6 +46,7 @@ coverage/
 
 # Logs
 *.log
+prompts.md
 
 # OS files
 .DS_Store

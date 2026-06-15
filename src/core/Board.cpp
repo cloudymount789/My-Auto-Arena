@@ -6,6 +6,7 @@ namespace my_auto_arena {
 namespace core {
 
 namespace {
+// 流程：校验构造参数必须为正数 ──> 非法抛异常 ──> 合法则原值返回
 int requirePositive(int value, const char* message) {
     if (value <= 0) {
         throw std::invalid_argument(message);
@@ -40,6 +41,7 @@ bool Board::inBounds(Position position) const {
     return position.row >= 0 && position.row < rows_ && position.col >= 0 && position.col < cols_;
 }
 
+// 流程：检查坐标在棋盘内 ──> 行号位于下半区则视为玩家半场 ──> 越界直接 false
 bool Board::isPlayerHalf(Position position) const {
     if (!inBounds(position)) {
         return false;
@@ -47,6 +49,7 @@ bool Board::isPlayerHalf(Position position) const {
     return position.row >= rows_ / 2;
 }
 
+// 流程：检查坐标在棋盘内 ──> 行号位于上半区则视为敌方半场 ──> 越界直接 false
 bool Board::isEnemyHalf(Position position) const {
     if (!inBounds(position)) {
         return false;
@@ -54,6 +57,7 @@ bool Board::isEnemyHalf(Position position) const {
     return position.row < rows_ / 2;
 }
 
+// 流程：校验坐标 ──> 交给 Tile 写入占用单位 ID ──> 返回是否放置成功
 bool Board::placeOnBoard(int unitId, Position position) {
     if (!inBounds(position)) {
         return false;
@@ -61,6 +65,7 @@ bool Board::placeOnBoard(int unitId, Position position) {
     return tiles_.at(tileIndex(position)).place(unitId);
 }
 
+// 流程：校验坐标 ──> 清空对应 Tile 占用状态 ──> 越界时返回 false
 bool Board::clearOnBoard(Position position) {
     if (!inBounds(position)) {
         return false;
@@ -69,6 +74,7 @@ bool Board::clearOnBoard(Position position) {
     return true;
 }
 
+// 流程：校验坐标 ──> 越界或空格返回空槽标记 ──> 否则返回 Tile 占用单位 ID
 int Board::occupantOnBoard(Position position) const {
     if (!inBounds(position)) {
         return kEmptySlot;
@@ -93,6 +99,7 @@ Position Board::findUnitOnBoard(int unitId) const {
     return Position{-1, -1};
 }
 
+// 流程：校验备战区下标/单位 ID/空位 ──> 写入单位 ID ──> 返回是否放置成功
 bool Board::placeOnBench(int unitId, int index) {
     if (index < 0 || index >= benchSize() || unitId < 0 || benchUnits_.at(index) >= 0) {
         return false;
@@ -101,6 +108,7 @@ bool Board::placeOnBench(int unitId, int index) {
     return true;
 }
 
+// 流程：校验备战区下标 ──> 清空槽位 ──> 越界时返回 false
 bool Board::clearOnBench(int index) {
     if (index < 0 || index >= benchSize()) {
         return false;
@@ -109,6 +117,7 @@ bool Board::clearOnBench(int index) {
     return true;
 }
 
+// 流程：校验备战区下标 ──> 越界或空槽返回空槽标记 ──> 否则返回槽位单位 ID
 int Board::occupantOnBench(int index) const {
     if (index < 0 || index >= benchSize()) {
         return kEmptySlot;

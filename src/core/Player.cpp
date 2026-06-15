@@ -27,6 +27,7 @@ int Player::hp() const { return hp_; }
 int Player::level() const { return level_; }
 int Player::populationCap() const { return populationCap_; }
 
+// 流程：校验金币非负 ──> 写入玩家金币字段
 void Player::setGold(int gold) {
     if (gold < 0) {
         throw std::invalid_argument("Gold cannot be negative.");
@@ -34,6 +35,7 @@ void Player::setGold(int gold) {
     gold_ = gold;
 }
 
+// 流程：校验生命非负 ──> 写入玩家生命字段
 void Player::setHp(int hp) {
     if (hp < 0) {
         throw std::invalid_argument("Hp cannot be negative.");
@@ -41,6 +43,7 @@ void Player::setHp(int hp) {
     hp_ = hp;
 }
 
+// 流程：校验等级为正 ──> 写入玩家等级字段
 void Player::setLevel(int level) {
     if (level <= 0) {
         throw std::invalid_argument("Level must be positive.");
@@ -48,6 +51,7 @@ void Player::setLevel(int level) {
     level_ = level;
 }
 
+// 流程：校验人口上限为正 ──> 写入人口上限字段
 void Player::setPopulationCap(int populationCap) {
     if (populationCap <= 0) {
         throw std::invalid_argument("Population cap must be positive.");
@@ -55,6 +59,7 @@ void Player::setPopulationCap(int populationCap) {
     populationCap_ = populationCap;
 }
 
+// 流程：过滤非法单位 ID ──> 在线性拥有列表中查找 ──> 返回是否拥有
 bool Player::ownsUnit(int unitId) const {
     if (unitId < 0) {
         return false;
@@ -62,6 +67,7 @@ bool Player::ownsUnit(int unitId) const {
     return std::find(unitIds_.begin(), unitIds_.end(), unitId) != unitIds_.end();
 }
 
+// 流程：校验单位 ID ──> 若尚未拥有则追加到拥有列表 ──> 避免重复记录
 void Player::addUnit(int unitId) {
     if (unitId < 0) {
         throw std::invalid_argument("Unit id must be non-negative.");

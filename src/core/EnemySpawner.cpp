@@ -8,6 +8,7 @@ namespace core {
 
 namespace {
 
+// 流程：按敌方星级判断是否升档 ──> 星级达标则 1.5 倍缩放 ──> 否则保留基础值
 int scaleStat(int base, int starLevel) {
     if (starLevel >= 2) {
         return static_cast<int>(base * 1.5 + 0.5);
@@ -23,6 +24,7 @@ double endlessTargetArmyHp(int round) {
     return 9000.0 * std::pow(1.12, round - 7);
 }
 
+// 流程：遍历计划刷怪列表 ──> 跳过非法模板索引 ──> 按模板生命和星级倍率累加预估总血量
 double plannedArmyHp(const std::vector<SpawnEntry>& entries, const std::vector<EnemyTemplate>& templates) {
     double total = 0.0;
     for (std::size_t i = 0; i < entries.size(); ++i) {
@@ -52,6 +54,7 @@ public:
 
 EnemySpawner::EnemySpawner() {}
 
+// 流程：懒初始化敌方模板表 ──> 保持静态生命周期 ──> 返回只读模板引用
 const std::vector<EnemyTemplate>& EnemySpawner::templates() const {
     // 模板顺序：战士 / 射手 / 重甲战士 / 法师 / 治疗师 / 攻城弩
     // 敌方基础值接近但仍低于对应玩家英雄；难度主要由每关预算曲线控制。

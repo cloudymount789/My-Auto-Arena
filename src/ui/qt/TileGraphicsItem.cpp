@@ -25,6 +25,7 @@ int TileGraphicsItem::logicalRow() const { return logicalRow_; }
 
 int TileGraphicsItem::logicalCol() const { return logicalCol_; }
 
+// 流程：记录高亮状态 ──> 高亮时使用金色粗边 ──> 取消时恢复默认边框
 void TileGraphicsItem::setHighlighted(bool highlighted) {
     highlighted_ = highlighted;
     if (highlighted_) {

@@ -75,6 +75,7 @@ UnitInfoPanel::UnitInfoPanel(QWidget* parent) : QWidget(parent), currentUnitId_(
     layout->addStretch();
 }
 
+// 流程：循环取出装备槽布局项 ──> 删除其中 widget ──> 删除布局项本身
 void UnitInfoPanel::clearEquipSlotRows() {
     while (equipSlotsLayout_->count() > 0) {
         QLayoutItem* item = equipSlotsLayout_->takeAt(0);
@@ -212,6 +213,7 @@ void UnitInfoPanel::onSellClicked() {
     }
 }
 
+// 流程：校验当前单位 ID ──> 从 sender 读取槽位索引 ──> 发出卸装请求信号
 void UnitInfoPanel::onUnequipSlotClicked() {
     if (currentUnitId_ < 0) {
         return;

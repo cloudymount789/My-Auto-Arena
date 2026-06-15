@@ -6,6 +6,7 @@
 #include "core/Unit.h"
 #include "ui/ConsoleRenderer.h"
 
+// 流程：创建控制台演示棋盘/英雄/玩家 ──> 执行两次拖放上场 ──> 渲染棋盘到标准输出
 int main() {
     my_auto_arena::core::Board board(8, 8, 8);
     my_auto_arena::core::WarriorUnit warrior(1, my_auto_arena::core::UnitOwner::player);

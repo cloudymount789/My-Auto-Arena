@@ -445,6 +445,7 @@ void QtMainWindow::doSettlement() {
     showSettlementDialog(outcome, droppedItems);
 }
 
+// 流程：清空旧部署记录 ──> 遍历玩家英雄 ──> 记录仍在玩家半场棋盘上的单位位置
 void QtMainWindow::captureCurrentDeployment() {
     savedDeployment_.clear();
     for (std::size_t i = 0; i < playerUnits_.size(); ++i) {
@@ -463,6 +464,7 @@ void QtMainWindow::captureCurrentDeployment() {
     updateStatusPanel();
 }
 
+// 流程：遍历保存的部署条目 ──> 只要对应单位仍存在于 unitsMap_ 就认为可复现
 bool QtMainWindow::hasSavedDeployment() const {
     for (std::size_t i = 0; i < savedDeployment_.size(); ++i) {
         if (unitsMap_.find(savedDeployment_.at(i).unitId) != unitsMap_.end()) {
@@ -472,6 +474,7 @@ bool QtMainWindow::hasSavedDeployment() const {
     return false;
 }
 
+// 流程：校验准备阶段与部署记录 ──> 清空玩家单位现有位置 ──> 按记录上场到原坐标 ──> 未上场单位放回备战区
 int QtMainWindow::applySavedDeployment() {
     if (!fsm_.canPlayerAct() || savedDeployment_.empty()) {
         return 0;
@@ -544,6 +547,7 @@ int QtMainWindow::applySavedDeployment() {
     return deployed;
 }
 
+// 流程：根据胜负生成基础结算文案 ──> 追加掉落装备列表 ──> 返回弹窗文本
 QString QtMainWindow::settlementMessage(
     const core::RoundOutcome& outcome,
     const std::vector<core::ItemType>& droppedItems) const {
@@ -568,6 +572,7 @@ QString QtMainWindow::settlementMessage(
     return message;
 }
 
+// 流程：创建结算 QMessageBox ──> 填入胜负图标与文案 ──> 用户确认后进入下一轮
 void QtMainWindow::showSettlementDialog(
     const core::RoundOutcome& outcome,
     const std::vector<core::ItemType>& droppedItems) {
@@ -581,6 +586,7 @@ void QtMainWindow::showSettlementDialog(
     onNextRound();
 }
 
+// 流程：应用上次部署 ──> 同步场景与羁绊/状态/道具面板 ──> 根据部署数量提示结果
 void QtMainWindow::onDeployFromLast() {
     const int deployed = applySavedDeployment();
     scene_->syncAfterBattle(unitsMap_);
@@ -664,6 +670,7 @@ void QtMainWindow::onHeroPurchased(int slotIndex) {
         2000);
 }
 
+// 流程：校验当前可操作 ──> 扣刷新费用并随机商店 ──> 刷新状态与商店面板
 void QtMainWindow::onShopRefresh() {
     if (!fsm_.canPlayerAct()) {
         statusBar()->showMessage("战斗阶段无法刷新商店", 1500);
@@ -762,6 +769,7 @@ void QtMainWindow::onLevelUp() {
     statusBar()->showMessage(QString("人口上限提升到 %1").arg(player_.populationCap()), 1500);
 }
 
+// 流程：禁止战斗中存档 ──> 选择保存路径 ──> 调 SaveManager 写入当前状态并反馈结果
 void QtMainWindow::onSaveGame() {
     if (fsm_.currentPhase() == core::GamePhase::kBattle) {
         statusBar()->showMessage("战斗阶段暂不能存档，请等待结算后再保存", 2000);
@@ -810,6 +818,7 @@ void QtMainWindow::onLoadGame() {
     }
 }
 
+// 流程：遍历备战区槽位 ──> 找到空槽立即返回 true ──> 全满则 false
 bool QtMainWindow::hasEmptyBenchSlot() const {
     for (int slot = 0; slot < board_.benchSize(); ++slot) {
         if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
@@ -819,6 +828,7 @@ bool QtMainWindow::hasEmptyBenchSlot() const {
     return false;
 }
 
+// 流程：遍历备战区槽位 ──> 找到空槽放入英雄 ID ──> 成功返回 true，否则 false
 bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {
     for (int slot = 0; slot < board_.benchSize(); ++slot) {
         if (board_.occupantOnBench(slot) == core::Board::kEmptySlot) {
@@ -829,6 +839,7 @@ bool QtMainWindow::placeHeroOnBench(core::Unit* hero) {
     return false;
 }
 
+// 流程：仅准备阶段重算羁绊 BUFF ──> 刷新羁绊展示 ──> 同步当前选中单位面板
 void QtMainWindow::refreshPreparationSynergyBuffs() {
     if (fsm_.canPlayerAct()) {
         core::SynergySystem::applyBuffs(board_, unitsMap_);
@@ -837,6 +848,7 @@ void QtMainWindow::refreshPreparationSynergyBuffs() {
     updateSelectedUnitPanel();
 }
 
+// 流程：校验信息面板与当前选择 ──> 在 unitsMap_ 查找单位 ──> 不存在则清空选择，存在则刷新详情
 void QtMainWindow::updateSelectedUnitPanel() {
     if (infoPanel_ == nullptr) {
         return;
@@ -853,6 +865,7 @@ void QtMainWindow::updateSelectedUnitPanel() {
     infoPanel_->setUnit(it->second);
 }
 
+// 流程：遍历当前单位表找最大 ID ──> nextUnitId_ 设为 max+1，避免读档后新单位 ID 冲突
 void QtMainWindow::recomputeNextUnitId() {
     int maxId = 99;
     for (std::map<int, core::Unit*>::const_iterator it = unitsMap_.begin(); it != unitsMap_.end(); ++it) {
@@ -926,6 +939,7 @@ void QtMainWindow::updateSynergyDisplay() {
     synergyLabel_->setToolTip(tooltip.trimmed());
 }
 
+// 流程：确认商店面板存在 ──> 用当前商店状态和玩家金币刷新按钮显示
 void QtMainWindow::updateShopDisplay() {
     if (shopPanel_ != nullptr) {
         shopPanel_->updateDisplay(shop_, player_.gold());

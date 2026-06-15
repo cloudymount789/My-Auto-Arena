@@ -31,6 +31,7 @@ bool isClass(UnitClass cls, UnitClass a, UnitClass b, UnitClass c) {
     return cls == a || cls == b || cls == c;
 }
 
+// 流程：从低到高遍历阈值 ──> count 达标则更新激活档位 ──> 返回最高已激活阈值
 int activeThresholdFor(int count, const Tier* tiers, int tierCount) {
     int active = 0;
     for (int i = 0; i < tierCount; ++i) {
@@ -41,6 +42,7 @@ int activeThresholdFor(int count, const Tier* tiers, int tierCount) {
     return active;
 }
 
+// 流程：从低到高查找首个未达阈值 ──> 返回下一目标 ──> 已满级时返回最高阈值
 int nextThresholdFor(int count, const Tier* tiers, int tierCount) {
     for (int i = 0; i < tierCount; ++i) {
         if (count < tiers[i].threshold) {
@@ -50,6 +52,7 @@ int nextThresholdFor(int count, const Tier* tiers, int tierCount) {
     return tiers[tierCount - 1].threshold;
 }
 
+// 流程：从低到高遍历档位 ──> 记录最高达标 Tier 指针 ──> 未激活则返回 nullptr
 const Tier* activeTierFor(int count, const Tier* tiers, int tierCount) {
     const Tier* active = nullptr;
     for (int i = 0; i < tierCount; ++i) {
@@ -60,6 +63,7 @@ const Tier* activeTierFor(int count, const Tier* tiers, int tierCount) {
     return active;
 }
 
+// 流程：遍历所有档位 ──> 拼接“星数: 描述”多行文本 ──> 返回 tooltip 详情
 std::string detailFromTiers(const Tier* tiers, int tierCount) {
     std::string text;
     for (int i = 0; i < tierCount; ++i) {
@@ -71,6 +75,7 @@ std::string detailFromTiers(const Tier* tiers, int tierCount) {
     return text;
 }
 
+// 流程：计算当前/下一阈值 ──> 选择激活说明或未激活文案 ──> 填充 UI 展示所需字段
 ActiveSynergy makeSynergy(const std::string& name, int count, const Tier* tiers, int tierCount,
                           const std::string& classes, const std::string& inactiveText) {
     ActiveSynergy s;
@@ -87,6 +92,7 @@ ActiveSynergy makeSynergy(const std::string& name, int count, const Tier* tiers,
 
 }  // namespace
 
+// 流程：扫描棋盘所有格子 ──> 找到玩家指定职业单位 ──> 按星级累加羁绊星数
 int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
                                       const std::map<int, Unit*>& units) {
     int count = 0;
@@ -109,6 +115,7 @@ int SynergySystem::countClassOnBoard(UnitClass cls, const Board& board,
     return count;
 }
 
+// 流程：重置旧护盾状态/清旧 BUFF ──> 统计各职业星数 ──> 计算四类羁绊档位 ──> 遍历上场玩家单位写入加成
 void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) {
     Unit::resetSynergyShieldState();
     for (std::map<int, Unit*>::iterator it = units.begin(); it != units.end(); ++it) {
@@ -236,6 +243,7 @@ void SynergySystem::applyBuffs(const Board& board, std::map<int, Unit*>& units) 
     }
 }
 
+// 流程：重置全局护盾状态 ──> 遍历玩家单位列表 ──> 对仍存在的单位清除羁绊加成
 void SynergySystem::clearBuffs(std::vector<Unit*>& playerUnits) {
     Unit::resetSynergyShieldState();
     for (std::size_t i = 0; i < playerUnits.size(); ++i) {
@@ -245,6 +253,7 @@ void SynergySystem::clearBuffs(std::vector<Unit*>& playerUnits) {
     }
 }
 
+// 流程：定义四套羁绊档位 ──> 统计当前棋盘职业星数 ──> 构造 ActiveSynergy 列表供 UI 展示
 std::vector<ActiveSynergy> SynergySystem::getActiveSynergies(const Board& board,
                                                               const std::map<int, Unit*>& units) {
     static const Tier kOffenseTiers[4] = {
